@@ -1,17 +1,32 @@
 from dependencies.mqtt_functions import *
 
 from dependencies import loadConfig
+from dependencies import churchill_database_actions
+
 import time
 import threading
 from queue import Empty, Queue
 from mqtt_client import MQTTClient, MQTTConfig
+import cv2
 #
-IP = loadConfig.return_config_value("ip")
-PORT = loadConfig.return_config_value("port")
-TRIGGER_TOPIC = loadConfig.return_config_value("trigger_topic")
+IP = loadConfig.return_config_value("mqtt_ip")
+PORT = loadConfig.return_config_value("mqtt_port")
+TRIGGER_TOPIC = loadConfig.return_config_value("search_in_table")
 OUTPUT_TOPIC = loadConfig.return_config_value("output_topic") #this should be adjusted to suit your worker requirements
 
-def worker_process_function():
+def worker_process_function(msg:dict):
+    database_table = "sku_table"
+    db = churchill_database_actions(password="root", database_name="churchill_database")
+
+    depth_image = cv2.imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/imageNew.png").tobytes()
+    colour_image = cv2.imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/cam0_ljs_20260722_120658.png").tobytes()
+    
+    new_sku = {
+        "depth":10, "area":10, "perimeter":10
+    }
+
+    print(msg)
+    db.add_sku(database_table, msg)
     print("insert your program here")
 
 def main():

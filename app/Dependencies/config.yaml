@@ -1,2 +1,14 @@
-key1: value1
-key2: value2
+# Broker connections  ---------------------------------------
+mqtt_ip: "localhost"
+mqtt_port: "1883"
+
+# Database connections ---------------------------------------
+user: "root"
+password: "root"
+database_name: "churchill_database"
+table_name: "sku_table"
+
+# MQTT options ---------------------------------------
+add_to_table: "churchill/add/sku_data"
+search_in_table: "churchill/search/sku_data"
+matching_sku: "churchil/search/matching_sku"
