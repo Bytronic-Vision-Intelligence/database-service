@@ -8,12 +8,9 @@ def subscribe_listener(ip: str, port: int, trigger_topic: str, result_queue: Que
     client.connect()
 
     def on_message(topic: str, payload: str) -> None:
-        # Handler signature used by mqtt_client.MQTTClient.subscribe
-        try:
-            decoded = payload
-        except Exception:
-            decoded = payload
-        print("Capture request received:", topic)
+        decoded = payload
+
+        print("Request received:", topic)
         result_queue.put(decoded)
 
     client.subscribe(trigger_topic, on_message)

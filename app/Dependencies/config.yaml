@@ -1,14 +1,15 @@
 # Broker connections  ---------------------------------------
-mqtt_ip: "localhost"
-mqtt_port: "1883"
+mqtt_ip: localhost
+mqtt_port: 1883
 
 # Database connections ---------------------------------------
+db_host_address: "127.0.0.1"
 user: "root"
 password: "root"
 database_name: "churchill_database"
 table_name: "sku_table"
 
 # MQTT options ---------------------------------------
-add_to_table: "churchill/add/sku_data"
-search_in_table: "churchill/search/sku_data"
-matching_sku: "churchil/search/matching_sku"
+add_to_table: "churchill/db/add/sku_data"
+search_in_table: "churchill/db/search/sku_data"
+matching_sku: "churchil/db/search/matching_sku"

@@ -1,7 +1,8 @@
 import mysql.connector
 from mysql.connector import Error
+from abc import ABC, abstractmethod
 
-class database_actions:
+class DatabaseActions:
     '''a class containing database connections and actions
     Parameters:
         host: the host address of the server
@@ -39,10 +40,12 @@ class database_actions:
             raise ConnectionError(f"Error: '{err}'")
 
         return connection
-
+    
+    @abstractmethod
     def _map_to_database(self, query):
             return query
 
+    @abstractmethod
     def _map_from_database(self, result):
         return result
 

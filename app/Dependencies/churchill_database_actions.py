@@ -1,15 +1,8 @@
-from pathlib import Path
-import sys
-import cv2 as cv
+from cv2 import imread
 
-p=Path(__file__).parents[2]
+from .database_actions import DatabaseActions
 
-if str(p) not in sys.path:
-    sys.path.insert(0, str(p))
-
-from .database_actions import database_actions
-
-class churchill_database_actions(database_actions):
+class ChurchillDatabaseActions(DatabaseActions):
     '''a class to hold the specific functions for the churchill process flow inherits from database_actions.
 
     Overrides:
@@ -40,7 +33,7 @@ class churchill_database_actions(database_actions):
         pass
 
     def add_sku(self,database_table, sku:dict):
-        '''adds a new sku to the churchill database.
+        '''Adds a new sku to the churchill database.
 
         Args:
             sku: a dictionary containing the sku data in the following format: depth image: binary, colour image: binary, depth: float, area: float, diameter: float
@@ -52,12 +45,22 @@ class churchill_database_actions(database_actions):
 
         self.execute_query(pop_new_sku)
 
+    def search_database(self,database_table, item_details:dict) -> dict:
+        '''searches the database table for all items matching the details given and returns all fuzzy matching items
+        
+        Args:
+            database_table: a string containing the name of the database table to be searched
+            item_details: a dictionary containing the details of the item being searched for containing the depth:float, area:float, perimeter:float
+        
+        Returns:
+            search_results: a dictionary of results'''
+
 if __name__ == "__main__":
     database_table = "sku_table"
-    db = churchill_database_actions(password="root", database_name="churchill_database")
+    db = ChurchillDatabaseActions(password="root", database_name="churchill_database")
 
-    depth_image = cv.imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/imageNew.png").tobytes()
-    colour_image = cv.imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/cam0_ljs_20260722_120658.png").tobytes()
+    depth_image = imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/imageNew.png").tobytes()
+    colour_image = imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/cam0_ljs_20260722_120658.png").tobytes()
 
     new_sku = {
         "depth":10, "area":10, "perimeter":10
