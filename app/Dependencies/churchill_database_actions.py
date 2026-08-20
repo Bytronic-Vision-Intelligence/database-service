@@ -22,8 +22,8 @@ class ChurchillDatabaseActions(DatabaseActions):
         contents = ""
 
         for item in data:
-            columns += f"{item},"
-            contents += f"{data[f'{item}']},"
+            columns += self._sanitise_data(f"{item},")
+            contents += self._sanitise_data(f"{data[f'{item}']},")
 
         query = f"INSERT INTO {table} ({columns}) VALUES ({contents})"
         query=query.replace(",)", ")")
