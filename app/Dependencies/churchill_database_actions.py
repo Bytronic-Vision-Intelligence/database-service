@@ -1,4 +1,5 @@
 from cv2 import imread
+import re
 
 from .database_actions import DatabaseActions
 
@@ -18,16 +19,19 @@ class ChurchillDatabaseActions(DatabaseActions):
             query: a string formatted correctly as an sql request
         '''
 
-        columns = ""
-        contents = ""
+        fields = [item for item in data if item not in {"command", "destination"}]
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
+            raise ValueError("Invalid database table name")
+        if not fields:
+            raise ValueError("No data fields supplied")
+        if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
+            raise ValueError("Invalid database column name")
 
-        for item in data:
-            columns += self._sanitise_data(f"{item},")
-            contents += self._sanitise_data(f"{data[f'{item}']},")
-
-        query = f"INSERT INTO {table} ({columns}) VALUES ({contents})"
-        query=query.replace(",)", ")")
-        return query
+        columns = ", ".join(fields)
+        placeholders = ", ".join(["%s"] * len(fields))
+        query = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
+        parameters = tuple(data[field] for field in fields)
+        return query, parameters
 
     def _map_from_database(self):
         pass
@@ -41,9 +45,8 @@ class ChurchillDatabaseActions(DatabaseActions):
 
         print(f"adding data string {sku} to {self.database_name}")
 
-        pop_new_sku = self._map_to_database(sku, table=database_table)
-
-        self.execute_query(pop_new_sku)
+        query, parameters = self._map_to_database(sku, table=database_table)
+        self.execute_query(query, parameters)
 
     def search_database(self,database_table, item_details:dict) -> dict:
         '''searches the database table for all items matching the details given and returns all fuzzy matching items

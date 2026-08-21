@@ -49,23 +49,6 @@ class DatabaseActions(ABC):
     def _map_from_database(self, result):
         pass
 
-    def _sanitise_data(self, data:str)->str:
-        '''sanitises data string by removing escape characters and handing them correctly
-        
-        Args:
-            data: a string of data that will be used within the stl query
-        
-        Returns:
-            sanitised_data: a string of data without any escape characters
-        '''
-        sanitised_data = data.replace("\\", '\\')
-        sanitised_data = sanitised_data.replace('"', '\"')
-        sanitised_data = sanitised_data.replace('/', '\/')
-        sanitised_data = sanitised_data.replace("{", "")
-        sanitised_data = sanitised_data.replace("}", "")
-        
-        return sanitised_data
-
     def create_db_connection(self):
         '''creates a connection to a database on the connected server'''
         self._disconnect()
@@ -80,7 +63,7 @@ class DatabaseActions(ABC):
         except Error as err:
             raise ConnectionError(f"Error: '{err}'") 
 
-    def execute_query(self, query):
+    def execute_query(self, query, parameters=None):
         '''executes a queory to the connected server and database
         Args:
             query: a string containing a valid sql query
@@ -90,7 +73,7 @@ class DatabaseActions(ABC):
         
         cursor = self.connection.cursor()
         try:
-            cursor.execute(query)
+            cursor.execute(query, parameters)
             self.connection.commit()
             print("Query successful")
         except Error as err:
