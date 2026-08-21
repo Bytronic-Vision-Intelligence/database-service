@@ -90,9 +90,12 @@ def main():
             time.sleep(0.1)
             message = _check_for_triggers(TOPICS)
             if message["command"] == "search_phrase":
-                message = message
+                try:
+                    db[message["destination"]].fuzzy_search(message["destination"], message)
+                except Exception as e:
+                    print(f"Error transmitting data to database table {e}")
+
             elif message["command"] == "add_phrase":
-                print(message["database_name"])
                 new_dictionary_data = _wait_for_data(message, TOPICS)
                 try:
                     db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
