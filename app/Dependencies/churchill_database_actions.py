@@ -54,17 +54,4 @@ class ChurchillDatabaseActions(DatabaseActions):
         
         Returns:
             search_results: a dictionary of results'''
-
-if __name__ == "__main__":
-    database_table = "sku_table"
-    db = ChurchillDatabaseActions(password="root", database_name="churchill_database")
-
-    depth_image = imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/imageNew.png").tobytes()
-    colour_image = imread("C:/Users/AmyHarrison/inference-methods/images/3d/churchill/cam0_ljs_20260722_120658.png").tobytes()
-
-    new_sku = {
-        "depth":10, "area":10, "perimeter":10
-    }
-
-    print(new_sku)
-    db.add_sku(database_table, new_sku)
+        pass

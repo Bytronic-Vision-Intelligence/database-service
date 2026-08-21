@@ -1,17 +1,31 @@
 # Broker connections  ---------------------------------------
-mqtt_ip: localhost
-mqtt_port: 1883
+broker_details:
+- mqtt_ip: localhost
+  mqtt_port: 1883
 
 # Database connections ---------------------------------------
-db_host_address: "127.0.0.1"
-user: "root"
-password: "root"
-database_name: "churchill_database"
-table_name: "sku_table"
+database:
+- db_host_address: "127.0.0.1"
+  user: "root"
+  password: "root"
+  database_name: "churchill_database"
+  tables:
+  - table_name: "sku_table"
 
 # MQTT options ---------------------------------------
-add_to_table: "churchill/db/add/sku_data"
-search_in_table: "churchill/db/search/sku_data"
-matching_sku: "churchil/db/search/matching_sku"
-depth_image_topic: "churchil/depth_camera/image/depth_image"
-colour_image_topic: "churchil/colour_camera/image/colour_image"
+topics:
+- name: "add_to_table"
+  topic: "churchill/db/add/sku_data"
+  is_subscribe: True
+- name: "search_table"
+  topic: "churchill/db/search/sku_data"
+  is_subscribe: True
+- name: "database_output"
+  topic: "churchil/db/search/matching_sku"
+  is_subscribe: False
+- name: "depth_image"
+  topic: "churchil/depth_camera/image/depth_image"
+  is_subscribe: True
+- name: "colour_image"
+  topic: "churchil/colour_camera/image/colour_image"
+  is_subscribe: True

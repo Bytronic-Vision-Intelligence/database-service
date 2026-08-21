@@ -12,6 +12,7 @@ from mqtt_client import MQTTClient, MQTTConfig
 #
 IP = loadConfig.return_config_value("mqtt_ip")
 PORT = loadConfig.return_config_value("mqtt_port")
+
 SEARCH_TOPIC = loadConfig.return_config_value("search_in_table")
 ADD_TOPIC = loadConfig.return_config_value("add_to_table")
 DEPTH_IMAGE_TOPIC = loadConfig.return_config_value("depth_image_topic")
@@ -23,10 +24,6 @@ USER = loadConfig.return_config_value("user")
 PASSWORD = loadConfig.return_config_value("password")
 DATABASE = loadConfig.return_config_value("database_name")
 DATABASE_TABLE = loadConfig.return_config_value("table_name")
-
-def search_database(db:ChurchillDatabaseActions, msg:dict):
-
-    print(msg)
 
 def _wait_for_data(message:dict, queues:dict):
     '''Waits for data to be received from a dictionary of queue items, each queue item is then added to a dictionary
