@@ -27,7 +27,23 @@ DATABASE_TABLE = loadConfig.return_config_value("table_name")
 def search_database(db:ChurchillDatabaseActions, msg:dict):
 
     print(msg)
-    db.add_sku(DATABASE_TABLE, msg)
+
+def _wait_for_data(message:dict, queues:dict):
+    '''Waits for data to be received from a dictionary of queue items, each queue item is then added to a dictionary
+    Args:
+        message: a dictionary of data headings and data, this can be left unformatted if this is the first call
+        queues: a dictionary of Queues to retreive data from
+    Returns:
+        data_json: a dictionary of data items collected from each queue'''
+    data_json = message
+
+    for queue in queues:
+        queue_item =queue["queue"].get(timeout=10)
+        queue_item = loads(queue_item)
+
+        data_json["depth_data"] = {queue_item["image"]}
+
+    return data_json
 
 def main():
     config = MQTTConfig(host=IP, port=PORT)
@@ -46,6 +62,9 @@ def main():
     add_thread = start_subscribe_thread(IP, PORT, ADD_TOPIC, add_queue, stop_event)
     image_thread = start_subscribe_thread(IP, PORT, COLOUR_IMAGE_TOPIC, colour_image_queue, stop_event)
     depth_thread = start_subscribe_thread(IP, PORT, DEPTH_IMAGE_TOPIC, depth_image_queue, stop_event)
+    queue_dict = {
+        "image_queue" = colour_image_queue,
+    }
 
     try:
         while True:
