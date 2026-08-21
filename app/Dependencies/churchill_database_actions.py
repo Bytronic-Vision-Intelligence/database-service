@@ -1,4 +1,3 @@
-from cv2 import imread
 import re
 
 from .database_actions import DatabaseActions
