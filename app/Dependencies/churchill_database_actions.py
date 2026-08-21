@@ -19,7 +19,7 @@ class ChurchillDatabaseActions(DatabaseActions):
             query: a string formatted correctly as an sql request
         '''
 
-        fields = [item for item in data if item not in {"command", "destination"}]
+        fields = [item for item in data if item not in {"command", "destination", "database_name"}]
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
             raise ValueError("Invalid database table name")
         if not fields:

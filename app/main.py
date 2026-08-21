@@ -4,10 +4,10 @@ from dependencies import loadConfig
 from dependencies.churchill_database_actions import ChurchillDatabaseActions
 
 import time
-import logging
+from logging import info
 from json import loads
-import threading
-from queue import Empty, Queue
+from threading import Event
+from queue import Queue
 from mqtt_client import MQTTClient, MQTTConfig
 #
 MQTT_BROKERS = loadConfig.return_config_value("broker_details")
@@ -52,6 +52,7 @@ def _check_for_triggers(triggers:dict):
         try:
             message = loads(trigger["queue"].get_nowait())
         except Exception as e:
+            if e != KeyError: info(f"error occured when checking for trigger {e}")
             continue
 
     return message
@@ -59,17 +60,17 @@ def _check_for_triggers(triggers:dict):
 def main():
     config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
     for database in DATABASE_DETAILS:
-        db = ChurchillDatabaseActions(
+        db = {database["database_name"]: ChurchillDatabaseActions(
             host=database["db_host_address"],
             user=database["user"], 
             password=database["password"], 
             database_name=database["database_name"]
-        )
+        )}
 
     client = MQTTClient(config)
     client.connect()
 
-    stop_event = threading.Event()
+    stop_event = Event()
     for topic in TOPICS:
         if not topic["is_subscribe"]:
             continue
@@ -88,21 +89,20 @@ def main():
 
             time.sleep(0.1)
             message = _check_for_triggers(TOPICS)
-
             if message["command"] == "search_phrase":
                 message = message
             elif message["command"] == "add_phrase":
+                print(message["database_name"])
                 new_dictionary_data = _wait_for_data(message, TOPICS)
-                db.add_sku(message["destination"], new_dictionary_data)
+                try:
+                    db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
+                except Exception as e:
+                    print(f"Error transmitting data to database table {e}")
             else:
                 continue
 
     except KeyboardInterrupt:
         print("Shutting down subscribe listener and exiting.")
-    finally:
-        stop_event.set()
-        for topic in TOPICS:
-            topic["thread"].stop_event.set()
 
 if __name__ == "__main__":
     main()
