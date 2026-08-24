@@ -1,5 +1,4 @@
 import re
-import sqlite3
 
 from .sqlite_database_actions import SqliteDatabaseActions
 
