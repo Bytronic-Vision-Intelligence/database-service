@@ -6,9 +6,7 @@ broker_details:
 # Database connections ---------------------------------------
 database: [
   {
-    db_host_address: "127.0.0.1",
-    user: "root",
-    password: "root",
+    file_location: "C:/Users/AmyHarrison/database_service/database/churchill_database.db",
     database_name: "churchill_database",
     tables: [
       {

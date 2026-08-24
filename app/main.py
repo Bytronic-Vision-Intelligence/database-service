@@ -22,14 +22,19 @@ def _wait_for_data(message:dict, queues:dict):
     Returns:
         data_json: a dictionary of data items with new information appended into them'''
     data_json = message
-
+    queue_item = dict()
     for queue in queues:
         try:
             if not queue["is_subscribe"] or queue["is_trigger"]: continue
         except:
             continue
-        queue_item =queue["queue"].get(timeout=10)
-        queue_item = loads(queue_item)
+        try:
+            queue_item =queue["queue"].get(timeout=1)
+            queue_item = loads(queue_item)
+        except Exception as e:
+            queue_item["image"] = None
+            info(f"Error: unable to get item from queue {e}")
+            print(f"Error: unable to get item from queue {e}")
 
         data_json[f"{queue['name']}"] = queue_item["image"]
 
@@ -61,11 +66,11 @@ def main():
     config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
     for database in DATABASE_DETAILS:
         db = {database["database_name"]: ChurchillDatabaseActions(
-            host=database["db_host_address"],
-            user=database["user"], 
-            password=database["password"], 
-            database_name=database["database_name"]
+            database_location=database["file_location"]
         )}
+        table_name = database["tables"][0]["churchill_sku_table"]
+        if not db[database["database_name"]].check_table_exists(table_name):
+            raise ConnectionError(f"Error : Could not connect to table {table_name}")
 
     client = MQTTClient(config)
     client.connect()
@@ -86,13 +91,13 @@ def main():
 
     try:
         while True:
-
             time.sleep(0.1)
             message = _check_for_triggers(TOPICS)
             if message["command"] == "search_phrase":
                 try:
                     db[message["destination"]].fuzzy_search(message["destination"], message)
                 except Exception as e:
+                    info(f"Error transmitting data to database table {e}")
                     print(f"Error transmitting data to database table {e}")
 
             elif message["command"] == "add_phrase":
@@ -100,7 +105,8 @@ def main():
                 try:
                     db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
                 except Exception as e:
-                    print(f"Error transmitting data to database table {e}")
+                    info(f"Error transmitting data to database {e}")
+                    print(f"Error transmitting data to database {e}")
             else:
                 continue
 

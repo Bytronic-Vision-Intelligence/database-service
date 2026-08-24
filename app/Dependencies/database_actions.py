@@ -1,9 +1,8 @@
 import mysql.connector
 from mysql.connector import Error
 from abc import ABC, abstractmethod
-
 class DatabaseActions(ABC):
-    '''a class containing database connections and actions
+    '''a class containing database connections and actions using mysql as the native framework for database connections
     Parameters:
         host: the host address of the server
         user: the username for server connection
@@ -83,3 +82,24 @@ class DatabaseActions(ABC):
         '''disconnects from the current database/server'''
         if not self.connection is None:
             self.connection.disconnect()
+
+    def add_sku(self,database_table, sku:dict):
+            '''Adds a new sku to a database table.
+            Args:
+                sku: a dictionary containing the sku data in the following format: depth image: binary, colour image: binary, depth: float, area: float, diameter: float
+            '''
+            query, parameters = self._map_to_database(sku, table=database_table)
+            self.execute_query(f"INSERT INTO {query}", parameters)
+    
+    def fuzzy_search(self, database_table, search_details:dict):
+        '''Performs a fuzzy search on a database table based on a set list of comumns and their associated data
+        Args:
+            database_table: a string value containing the database table that will be targeted for the search
+            search_details: a ditcionary containing the search details
+        Returns:
+            search_results: a dictionary of results from the server
+        '''
+
+        search_term, parameters = self._construct_search_query(search_details, database_table)
+        query = f"SELECT {search_term} ORDER BY RegNum"
+        self.execute_query(query, parameters)
