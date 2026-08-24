@@ -1,4 +1,5 @@
 import mysql.connector
+from logging import info
 from mysql.connector import Error
 from abc import ABC, abstractmethod
 class DatabaseActions(ABC):
@@ -25,6 +26,10 @@ class DatabaseActions(ABC):
         self.connection = self._connect()
         self.create_db_connection()
 
+    @abstractmethod
+    def set_database_map(self, table):
+        pass
+
     def _connect(self):
         '''creates a connection to an sql server'''
         connection = None
@@ -45,7 +50,7 @@ class DatabaseActions(ABC):
         pass
 
     @abstractmethod
-    def _map_from_database(self, result):
+    def _map_from_database(self, result, map):
         pass
 
     def create_db_connection(self):
@@ -75,6 +80,7 @@ class DatabaseActions(ABC):
             cursor.execute(query, parameters)
             self.connection.commit()
             print("Query successful")
+            return cursor.fetchall()
         except Error as err:
             raise ConnectionError(f"Error: '{err}'")
 
@@ -91,7 +97,7 @@ class DatabaseActions(ABC):
             query, parameters = self._map_to_database(sku, table=database_table)
             self.execute_query(f"INSERT INTO {query}", parameters)
     
-    def fuzzy_search(self, database_table, search_details:dict):
+    def fuzzy_search(self, database_table:str, search_details:dict):
         '''Performs a fuzzy search on a database table based on a set list of comumns and their associated data
         Args:
             database_table: a string value containing the database table that will be targeted for the search
@@ -101,5 +107,11 @@ class DatabaseActions(ABC):
         '''
 
         search_term, parameters = self._construct_search_query(search_details, database_table)
-        query = f"SELECT {search_term} ORDER BY RegNum"
-        self.execute_query(query, parameters)
+        query = f"{search_term}"
+        results = self.execute_query(query, parameters)
+        try:
+            results = self._map_from_database(results, self.database_map)
+        except Exception as e:
+            print(f"Error: unable to map data from database: {e}")
+            info(f"Error: unable to map data from database: {e}")
+        return results

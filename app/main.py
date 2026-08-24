@@ -5,7 +5,7 @@ from dependencies.churchill_database_actions import ChurchillDatabaseActions
 
 import time
 from logging import info
-from json import loads
+from json import loads, dumps
 from threading import Event
 from queue import Queue
 from mqtt_client import MQTTClient, MQTTConfig
@@ -71,6 +71,7 @@ def main():
         table_name = database["tables"][0]["churchill_sku_table"]
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
+        db[database["database_name"]].set_database_map(table_name)
 
     client = MQTTClient(config)
     client.connect()
@@ -95,11 +96,19 @@ def main():
             message = _check_for_triggers(TOPICS)
             if message["command"] == "search_phrase":
                 try:
-                    db[message["destination"]].fuzzy_search(message["destination"], message)
-                except Exception as e:
-                    info(f"Error transmitting data to database table {e}")
-                    print(f"Error transmitting data to database table {e}")
+                    search_results = db[message["database_name"]].fuzzy_search(message["destination"], message)
+                    output_topic = next(
+                        topic["topic"]
+                        for topic in TOPICS
+                        if not topic["is_subscribe"]
+                    )
+                    json_results = dumps(search_results)
+                    client.publish(output_topic, json_results)
+                    print(search_results)
 
+                except Exception as e:
+                    info(f"Error: fuzzy search fialed: {e}")
+                    print(f"Error: fuzzy search fialed: {e}")
             elif message["command"] == "add_phrase":
                 new_dictionary_data = _wait_for_data(message, TOPICS)
                 try:

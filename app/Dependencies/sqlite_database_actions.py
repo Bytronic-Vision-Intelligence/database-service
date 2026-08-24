@@ -17,6 +17,15 @@ class SqliteDatabaseActions(DatabaseActions):
             raise ConnectionError(f"Unable to connect to database: {e}")
         return connection
 
+    def set_database_map(self, table):
+        '''simple setter that sets the database map
+        Args:
+            map: a dict of column headers'''
+    
+        query = """SELECT name FROM pragma_table_info(?);"""
+        table_columns = self.execute_query(query, (table,))
+        self.database_map = [column[0] for column in table_columns]
+
     def check_table_exists(self, table_name:str):
             '''checks to see if a table exists and returns a boolean value depending on the result
             Args:

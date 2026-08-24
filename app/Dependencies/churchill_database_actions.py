@@ -10,8 +10,7 @@ class ChurchillDatabaseActions(SqliteDatabaseActions):
         '''
     
     def _map_to_database(self, data:dict[str, any], table):
-        '''converts a dictionary into a valid format to be sent to an sql server based on the database structure.
-
+        '''converts a dictionary into a valid format to be sent to an sql server based on the database structure
         Args:
             data: a dictionary containing the comumn name as key and the data as data
         Returns:
@@ -35,14 +34,34 @@ class ChurchillDatabaseActions(SqliteDatabaseActions):
         parameters = tuple(data[field] for field in fields)
         return query, parameters
 
-    def _map_from_database(self):
-        pass
+    def _map_from_database(self, results, table_columns):
+        '''Converts the database output to a dictionary based on the database keys
+        Args:
+            result: the result of the database queory
+            table_columns: a dictionary of columns found in the database
+        Returns:
+            mapped_result: a dictionary of results, appropriately mapped to the correct columns
+        '''
+        mapped_result = {}
+
+        for row_id, result in enumerate(results):
+            mapped_result[row_id] = {}
+
+            for column, value in zip(table_columns, result):
+                mapped_result[row_id][column] = value
+
+        return mapped_result
 
     def _construct_search_query(self, terms:dict, database_table:str):
         '''creates a search queory from a dictionary of terms
         Args:
             terms: a dictionary of terms to be used for the search'''
-        fields = [item for item in terms if item not in {"command", "destination", "database_name"}]
+        ignore_headers = {"command", "destination", "database_name"}
+        for item in terms:
+            if terms[item] == None: ignore_headers.add(f"{item}")
+        
+        fields = [item for item in terms if item not in ignore_headers]
+
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
             raise ValueError("Invalid database table name")
         if not fields:
@@ -52,6 +71,6 @@ class ChurchillDatabaseActions(SqliteDatabaseActions):
 
         columns = ", ".join(fields)
         placeholders = ", ".join(["?"] * len(fields))
-        query = f"{database_table} FROM {columns} WHERE RegNum LIKE '{placeholders}%'"
+        query = f"SELECT * FROM {database_table} WHERE ({columns}) = ({placeholders});"
         parameters = tuple(terms[field] for field in fields)
         return query, parameters
