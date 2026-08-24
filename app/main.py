@@ -21,6 +21,7 @@ def _wait_for_data(message:dict, queues:dict):
         queues: a dictionary of Queues to retreive data from
     Returns:
         data_json: a dictionary of data items with new information appended into them'''
+    if message is None: raise ValueError("Error: Message cannot be empty")
     data_json = message
     queue_item = dict()
     for queue in queues:
@@ -62,13 +63,17 @@ def _check_for_triggers(triggers:dict):
 
     return message
 
-def _fuzzy_search_database(client:MQTTClient, message:str, db:ChurchillDatabaseActions, threshold:float=0):
+def _fuzzy_search_database(client:MQTTClient, message:dict, db:ChurchillDatabaseActions, threshold:float=0):
     '''performs a fuzzy search on the current database and publishes the results to a given MQTT broker
     Args:
         client: an MQTT client object
-        message: a string containing a search term
+        message: a dict containing a search term
         db: a database actions object
     '''
+    if client is None: raise ValueError("Error: client cannot be None")
+    if message is None: raise ValueError("Error: message cannot be empty")
+    if db is None: raise ValueError("Error: no database object detected")
+
     search_results = db[message["database_name"]].search(message["destination"], message, threshold)
     output_topic = next(
         topic["topic"]
