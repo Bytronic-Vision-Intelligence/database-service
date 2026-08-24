@@ -62,6 +62,23 @@ def _check_for_triggers(triggers:dict):
 
     return message
 
+def _fuzzy_search_database(client:MQTTClient, message:str, db:ChurchillDatabaseActions, threshold:float=0):
+    '''performs a fuzzy search on the current database and publishes the results to a given MQTT broker
+    Args:
+        client: an MQTT client object
+        message: a string containing a search term
+        db: a database actions object
+    '''
+    search_results = db[message["database_name"]].search(message["destination"], message, threshold)
+    output_topic = next(
+        topic["topic"]
+        for topic in TOPICS
+        if not topic["is_subscribe"]
+    )
+    json_results = dumps(search_results)
+    client.publish(output_topic, json_results)
+    print(search_results)
+
 def main():
     config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
     for database in DATABASE_DETAILS:
@@ -96,15 +113,7 @@ def main():
             message = _check_for_triggers(TOPICS)
             if message["command"] == "search_phrase":
                 try:
-                    search_results = db[message["database_name"]].fuzzy_search(message["destination"], message)
-                    output_topic = next(
-                        topic["topic"]
-                        for topic in TOPICS
-                        if not topic["is_subscribe"]
-                    )
-                    json_results = dumps(search_results)
-                    client.publish(output_topic, json_results)
-                    print(search_results)
+                    _fuzzy_search_database(client, message, db, 10)
 
                 except Exception as e:
                     info(f"Error: fuzzy search fialed: {e}")

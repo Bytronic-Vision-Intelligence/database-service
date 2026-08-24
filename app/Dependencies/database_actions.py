@@ -97,16 +97,18 @@ class DatabaseActions(ABC):
             query, parameters = self._map_to_database(sku, table=database_table)
             self.execute_query(f"INSERT INTO {query}", parameters)
     
-    def fuzzy_search(self, database_table:str, search_details:dict):
-        '''Performs a fuzzy search on a database table based on a set list of comumns and their associated data
+    def search(self, database_table:str, search_details:dict, threshold:float = 0):
+        '''Performs a search on a database table based on a set list of comumns and their associated data
         Args:
             database_table: a string value containing the database table that will be targeted for the search
             search_details: a ditcionary containing the search details
         Returns:
             search_results: a dictionary of results from the server
         '''
-
-        search_term, parameters = self._construct_search_query(search_details, database_table)
+        if threshold == 0:
+            search_term, parameters = self._construct_search_query(search_details, database_table)
+        else:
+            search_term, parameters = self._construct_fuzzy_search_query(search_details, database_table, threshold)
         query = f"{search_term}"
         results = self.execute_query(query, parameters)
         try:

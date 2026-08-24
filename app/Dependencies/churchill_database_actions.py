@@ -51,26 +51,3 @@ class ChurchillDatabaseActions(SqliteDatabaseActions):
                 mapped_result[row_id][column] = value
 
         return mapped_result
-
-    def _construct_search_query(self, terms:dict, database_table:str):
-        '''creates a search queory from a dictionary of terms
-        Args:
-            terms: a dictionary of terms to be used for the search'''
-        ignore_headers = {"command", "destination", "database_name"}
-        for item in terms:
-            if terms[item] == None: ignore_headers.add(f"{item}")
-        
-        fields = [item for item in terms if item not in ignore_headers]
-
-        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
-            raise ValueError("Invalid database table name")
-        if not fields:
-            raise ValueError("No data fields supplied")
-        if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
-            raise ValueError("Invalid database column name")
-
-        columns = ", ".join(fields)
-        placeholders = ", ".join(["?"] * len(fields))
-        query = f"SELECT * FROM {database_table} WHERE ({columns}) = ({placeholders});"
-        parameters = tuple(terms[field] for field in fields)
-        return query, parameters
