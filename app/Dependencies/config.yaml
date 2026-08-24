@@ -8,6 +8,7 @@ database: [
   {
     file_location: "C:/Users/AmyHarrison/database_service/database/churchill_database.db",
     database_name: "churchill_database",
+    search_threshold: 20,
     tables: [
       {
         churchill_sku_table: "sku_table"

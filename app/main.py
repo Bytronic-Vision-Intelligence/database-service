@@ -94,6 +94,7 @@ def main():
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
+        db["threshold"]=database["search_threshold"]
 
     client = MQTTClient(config)
     client.connect()
@@ -118,7 +119,7 @@ def main():
             message = _check_for_triggers(TOPICS)
             if message["command"] == "search_phrase":
                 try:
-                    _fuzzy_search_database(client, message, db, 10)
+                    _fuzzy_search_database(client, message, db, db["threshold"])
 
                 except Exception as e:
                     info(f"Error: fuzzy search fialed: {e}")
