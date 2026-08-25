@@ -8,8 +8,8 @@ def _config_path() -> Path:
 
 def get_config() -> dict:
     """Read and return configuration from the local `config.yaml` next to this module.
-
-    Returns an empty dict if the file is missing or empty.
+    Returns:
+        config: an empty dict if the file is missing or empty or the corresponding information if found.
     """
     path = _config_path()
     if not path.exists():
@@ -21,8 +21,11 @@ def get_config() -> dict:
 
 def return_config_value(key: str) -> str:
     """Return the value for `key` from the loaded config.
-
     Raises ValueError for empty keys and KeyError when the key is missing.
+    Args:
+        key: a string containing the config value appearing in the yaml file
+    Returns:
+        config[key]: the values corresponding to the input string key
     """
     if not key:
         raise ValueError("Key cannot be empty.")
