@@ -2,6 +2,7 @@ from mqtt_client import MQTTClient, MQTTConfig
 import threading
 from queue import Queue
 
+
 def subscribe_listener(ip: str, port: int, trigger_topic: str, result_queue: Queue, stop_event: threading.Event):
     '''Starts a subscriber lister thread for a given broker and topic. adds any messages to a queue.
     Args: 

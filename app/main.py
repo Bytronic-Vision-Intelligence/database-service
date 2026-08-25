@@ -1,7 +1,7 @@
-from dependencies.mqtt_functions import *
+from app.dependencies.mqtt_functions import *
 
-from dependencies import loadConfig
-from dependencies.churchill_database_actions import ChurchillDatabaseActions
+from app.dependencies import loadConfig
+from app.dependencies.sqlite_database_actions import SqliteDatabaseActions
 
 import time
 from logging import info
@@ -63,7 +63,7 @@ def _check_for_triggers(triggers:dict):
 
     return message
 
-def _fuzzy_search_database(client:MQTTClient, message:dict, db:ChurchillDatabaseActions, threshold:float=0):
+def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseActions, threshold:float=0):
     '''performs a fuzzy search on the current database and publishes the results to a given MQTT broker
     Args:
         client: an MQTT client object
@@ -87,7 +87,7 @@ def _fuzzy_search_database(client:MQTTClient, message:dict, db:ChurchillDatabase
 def main():
     config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
     for database in DATABASE_DETAILS:
-        db = {database["database_name"]: ChurchillDatabaseActions(
+        db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
         table_name = database["tables"][0]["churchill_sku_table"]

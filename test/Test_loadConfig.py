@@ -7,8 +7,7 @@ from app.dependencies.loadConfig import return_config_value, get_config
 def test_return_config_value():
     # Test that the function returns the correct value for a given key
     config = get_config()
-    assert return_config_value("key1") == config.get("key1")
-    assert return_config_value("key2") == config.get("key2")
+    assert return_config_value("broker_details") == config.get("broker_details")
 
     with pytest.raises(KeyError):
         return_config_value("non_existent_key")
