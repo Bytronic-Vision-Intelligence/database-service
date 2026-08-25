@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
 
-    runs-on: ubuntu-latest #adjust this to match the target environment
+    runs-on: Windows-latest #adjust this to match the target environment
 
     steps:
     - uses: actions/checkout@v4
