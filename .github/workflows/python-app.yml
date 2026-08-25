@@ -40,4 +40,4 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path junit | Out-Null
-          pytest test --doctest-modules --junitxml=junit/test-results.xml
+          python -m pytest test --doctest-modules --junitxml=junit/test-results.xml
