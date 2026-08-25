@@ -1,6 +1,6 @@
-# Churchill Database Service
+# Database Service
 
-Python MQTT service for adding and searching Churchill SKU records in a local
+Python MQTT service for adding and searching SKU records in a local
 SQLite database. Searches use exact matching when the threshold is `0` and
 numeric fuzzy matching when the configured threshold is greater than `0`.
 
@@ -38,15 +38,15 @@ python -m pytest test
 
 ## MQTT API
 
-Subscribe to `churchill/db/search/sku_data` for commands and publish results to
-`churchil/db/search/matching_sku`.
+Subscribe to `[project_name]/db/search/sku_data` for commands and publish results to
+`[project_name]/db/search/matching_sku`.
 
 Search command:
 
 ```json
 {
 	"command": "search_phrase",
-	"database_name": "churchill_database",
+	"database_name": "[project_name]_database",
 	"destination": "sku_table",
 	"diameter": 100.0,
 	"area": 250.0
@@ -63,7 +63,7 @@ Add command:
 ```json
 {
 	"command": "add_phrase",
-	"database_name": "churchill_database",
+	"database_name": "[project_name]_database",
 	"destination": "sku_table",
 	"diameter": 100.0,
 	"area": 250.0,
