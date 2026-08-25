@@ -1,7 +1,7 @@
-from app.dependencies.mqtt_functions import *
+from dependencies.mqtt_functions import *
 
-from app.dependencies import loadConfig
-from app.dependencies.sqlite_database_actions import SqliteDatabaseActions
+from dependencies import loadConfig
+from dependencies.sqlite_database_actions import SqliteDatabaseActions
 
 import time
 from logging import info
