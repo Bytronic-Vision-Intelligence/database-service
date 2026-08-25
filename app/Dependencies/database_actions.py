@@ -32,7 +32,6 @@ class DatabaseActions(ABC):
     def create_db_connection(self):
         pass
 
-    @abstractmethod
     def execute_query(self, query, parameters=None):
         '''executes a queory to the connected server and database
         Args:
