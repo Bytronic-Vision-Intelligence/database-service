@@ -1,14 +1,18 @@
-**Bytronic microservice Template**
+# Churchill Database Service
 
-Purpose: A minimal Python worker template to jumpstart microservice projects.
+Python MQTT service for adding and searching Churchill SKU records in a local
+SQLite database. Searches use exact matching when the threshold is `0` and
+numeric fuzzy matching when the configured threshold is greater than `0`.
 
-**Prerequisites**:
+## Requirements
+
 - Python 3.8 or newer
-- pip
+- An MQTT broker, normally available at `localhost:1883`
 
-**Quick Start**:
-1. Clone the repository.
-2. Create and activate a virtual environment (PowerShell):
+## Setup
+
+From the repository root, create a virtual environment and install the pinned
+dependencies:
 
 ```powershell
 python -m venv .venv
@@ -16,24 +20,62 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-3. Edit configuration at `app/Dependencies/config.yaml` as needed.
-4. Run tests:
+Update `app/dependencies/config.yaml` with the broker, SQLite database path,
+table name, and fuzzy-search threshold. The configured table must already
+exist when the service starts.
+
+Run the service with:
+
+```powershell
+python app/main.py
+```
+
+Run the test suite with:
 
 ```powershell
 python -m pytest test
 ```
 
-**Configuration**:
-- Main config: `app/Dependencies/config.yaml`.
-- Use the loader in `app/Dependencies/loadConfig.py` to read settings from code.
+## MQTT API
 
-**Project layout**:
-- `app/` — application code and dependencies
-- `docs/` — documentation and license
-- `test/` — tests and examples
-- `tools/` — helper scripts
+Subscribe to `churchill/db/search/sku_data` for commands and publish results to
+`churchil/db/search/matching_sku`.
 
-**Notes**:
-- See `app/readme.md` for app-specific instructions.
-- License: see `docs/LISENCE`.
+Search command:
+
+```json
+{
+	"command": "search_phrase",
+	"database_name": "churchill_database",
+	"destination": "sku_table",
+	"diameter": 100.0,
+	"area": 250.0
+}
+```
+
+`command`, `database_name`, and `destination` identify the request. Any other
+non-null fields are used as search columns. With the default threshold of `20`,
+each numeric value may differ by up to `20` from the stored value. The response
+is JSON keyed by row index, with each row mapped to its column names.
+
+Add command:
+
+```json
+{
+	"command": "add_phrase",
+	"database_name": "churchill_database",
+	"destination": "sku_table",
+	"diameter": 100.0,
+	"area": 250.0,
+    "perimeter": 500
+}
+```
+
+## Project layout
+
+- `app/` - service entrypoint and database/MQTT dependencies
+- `database/` - SQLite database files
+- `docs/` - supporting documentation and license
+- `test/` - pytest tests
+- `tools/` - operational helper documentation
 
