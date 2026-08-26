@@ -28,10 +28,6 @@ class DatabaseActions(ABC):
     def _map_from_database(self, result, map):
         pass
 
-    @abstractmethod
-    def create_db_connection(self):
-        pass
-
     def execute_query(self, query, parameters=None):
         '''executes a queory to the connected server and database
         Args:
