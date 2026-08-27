@@ -6,12 +6,12 @@ broker_details:
 # Database connections ---------------------------------------
 database: [
   {
-    file_location: "C:/Users/AmyHarrison/database_service/database/churchill_database.db",
-    database_name: "churchill_database",
+    file_location: "database/test_database.db",
+    database_name: "test_database",
     search_threshold: 20,
     tables: [
       {
-        churchill_sku_table: "sku_table"
+        database_table: "test_table"
       }
     ]
   }

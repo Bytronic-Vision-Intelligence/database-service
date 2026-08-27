@@ -90,7 +90,7 @@ def main():
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
-        table_name = database["tables"][0]["churchill_sku_table"]
+        table_name = database["tables"][0]["database_table"]
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
