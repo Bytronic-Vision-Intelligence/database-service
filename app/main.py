@@ -1,18 +1,30 @@
-from dependencies.mqtt_functions import *
-
-from dependencies import loadConfig
-from dependencies.sqlite_database_actions import SqliteDatabaseActions
-
 import time
 from logging import info
 from json import loads, dumps
 from threading import Event
 from queue import Queue
+
 from mqtt_client import MQTTClient, MQTTConfig
-#
-MQTT_BROKERS = loadConfig.return_config_value("broker_details")
-TOPICS = loadConfig.return_config_value("topics")
-DATABASE_DETAILS = loadConfig.return_config_value("database")
+
+from dependencies import loadConfig
+from dependencies.mqtt_functions import start_subscribe_thread
+from dependencies.sqlite_database_actions import SqliteDatabaseActions
+
+
+def require(config: dict, key: str):
+    """Return a required top-level config value, or exit describing what is missing.
+
+    Args:
+        config: the loaded configuration mapping.
+        key: the top-level key the service cannot start without.
+    Returns:
+        the value stored under `key`.
+    Raises:
+        SystemExit: when `key` is absent, naming both the key and the file.
+    """
+    if key not in config:
+        raise SystemExit(f"Missing required config key '{key}' in {loadConfig.config_path()}")
+    return config[key]
 
 def _wait_for_data(message:dict, queues:dict):
     '''Waits for data to be received from a dictionary of queue items, each queue item is then added to a dictionary this is a blocking function
@@ -63,12 +75,13 @@ def _check_for_triggers(triggers:dict):
 
     return message
 
-def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseActions, threshold:float=0):
+def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseActions, topics:list, threshold:float=0):
     '''performs a fuzzy search on the current database and publishes the results to a given MQTT broker
     Args:
         client: an MQTT client object
         message: a dict containing a search term
         db: a database actions object
+        topics: the configured topic entries, used to find the output topic
     '''
     if client is None: raise ValueError("Error: client cannot be None")
     if message is None: raise ValueError("Error: message cannot be empty")
@@ -77,7 +90,7 @@ def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseAct
     search_results = db[message["database_name"]].search(message["destination"], message, threshold)
     output_topic = next(
         topic["topic"]
-        for topic in TOPICS
+        for topic in topics
         if not topic["is_subscribe"]
     )
     json_results = dumps(search_results)
@@ -85,8 +98,13 @@ def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseAct
     print(search_results)
 
 def main():
-    config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
-    for database in DATABASE_DETAILS:
+    settings = loadConfig.get_config()
+    mqtt_brokers = require(settings, "broker_details")
+    topics = require(settings, "topics")
+    database_details = require(settings, "database")
+
+    config = MQTTConfig(host=mqtt_brokers["mqtt_ip"], port=mqtt_brokers["mqtt_port"])
+    for database in database_details:
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
@@ -100,14 +118,14 @@ def main():
     client.connect()
 
     stop_event = Event()
-    for topic in TOPICS:
+    for topic in topics:
         if not topic["is_subscribe"]:
             continue
         topic["queue"] = Queue()
         
         topic["thread"] = start_subscribe_thread(
-            MQTT_BROKERS["mqtt_ip"], 
-            MQTT_BROKERS["mqtt_port"], 
+            mqtt_brokers["mqtt_ip"],
+            mqtt_brokers["mqtt_port"],
             topic["topic"], 
             topic["queue"],
             stop_event
@@ -116,16 +134,16 @@ def main():
     try:
         while True:
             time.sleep(0.1)
-            message = _check_for_triggers(TOPICS)
+            message = _check_for_triggers(topics)
             if message["command"] == "search_phrase":
                 try:
-                    _fuzzy_search_database(client, message, db, db["threshold"])
+                    _fuzzy_search_database(client, message, db, topics, db["threshold"])
 
                 except Exception as e:
                     info(f"Error: fuzzy search fialed: {e}")
                     print(f"Error: fuzzy search fialed: {e}")
             elif message["command"] == "add_phrase":
-                new_dictionary_data = _wait_for_data(message, TOPICS)
+                new_dictionary_data = _wait_for_data(message, topics)
                 try:
                     db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
                 except Exception as e:
