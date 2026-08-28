@@ -30,7 +30,7 @@ def _wait_for_data(message:dict, queues:dict):
         except:
             continue
         try:
-            queue_item =queue["queue"].get(timeout=1)
+            queue_item =queue["queue"].get(timeout=5)
             queue_item = loads(queue_item)
         except Exception as e:
             queue_item["image"] = None
@@ -117,14 +117,15 @@ def main():
         while True:
             time.sleep(0.1)
             message = _check_for_triggers(TOPICS)
-            if message["command"] == "search_phrase":
+            if message["command"] == "search_database":
                 try:
                     _fuzzy_search_database(client, message, db, db["threshold"])
 
                 except Exception as e:
                     info(f"Error: fuzzy search fialed: {e}")
                     print(f"Error: fuzzy search fialed: {e}")
-            elif message["command"] == "add_phrase":
+
+            elif message["command"] == "add_to_database":
                 new_dictionary_data = _wait_for_data(message, TOPICS)
                 try:
                     db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)

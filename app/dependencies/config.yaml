@@ -39,13 +39,13 @@ topics: [
   },
   {
     name: "depth_data",
-    topic: "test/depth_camera/image/depth_image",
+    topic: "test/image/depth_image",
     is_subscribe: True,
     is_trigger: False
   },
   {
     name: "colour_data",
-    topic: "test/colour_camera/image/colour_image",
+    topic: "test/image/colour_image",
     is_subscribe: True,
     is_trigger: False
   }
