@@ -6,7 +6,7 @@ broker_details:
 # Database connections ---------------------------------------
 database: [
   {
-    file_location: "C:/Users/AmyHarrison/database_service/database/churchill_database.db",
+    file_location: "database/churchill_database.db",
     database_name: "churchill_database",
     search_threshold: 20,
     tables: [
@@ -16,6 +16,13 @@ database: [
     ]
   }
 ]
+
+# Frame storage -----------------------------------------------
+# Captured frames are written here and only their path is stored, so the
+# .db stays small and retention is a file sweep.
+image_store: "database/images"
+frames_table: "frames"
+results_table: "results"
 
 # MQTT options ---------------------------------------
 topics: [
@@ -47,6 +54,32 @@ topics: [
     name: "colour_data",
     topic: "churchil/colour_camera/image/colour_image",
     is_subscribe: True,
+    is_trigger: False
+  }
+  ,
+  {
+    name: "save_frame",
+    topic: "project/db/frame/save",
+    is_subscribe: True,
+    is_trigger: True
+  },
+  {
+    name: "frame_ack",
+    topic: "project/db/frame/saved",
+    is_subscribe: False,
+    is_trigger: False
+  }
+  ,
+  {
+    name: "save_result",
+    topic: "project/db/result/save",
+    is_subscribe: True,
+    is_trigger: True
+  },
+  {
+    name: "result_ack",
+    topic: "project/db/result/saved",
+    is_subscribe: False,
     is_trigger: False
   }
 ]
