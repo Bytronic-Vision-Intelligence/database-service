@@ -17,6 +17,12 @@ database: [
   }
 ]
 
+# Frame storage -----------------------------------------------
+# Captured frames are written here and only their path is stored, so the
+# .db stays small and retention is a file sweep.
+image_store: "database/images"
+frames_table: "frames"
+
 # MQTT options ---------------------------------------
 topics: [
   {
@@ -47,6 +53,19 @@ topics: [
     name: "colour_data",
     topic: "churchil/colour_camera/image/colour_image",
     is_subscribe: True,
+    is_trigger: False
+  }
+  ,
+  {
+    name: "save_frame",
+    topic: "project/db/frame/save",
+    is_subscribe: True,
+    is_trigger: True
+  },
+  {
+    name: "frame_ack",
+    topic: "project/db/frame/saved",
+    is_subscribe: False,
     is_trigger: False
   }
 ]

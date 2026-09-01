@@ -1,5 +1,6 @@
 import time
 from logging import info
+from pathlib import Path
 from json import loads, dumps
 from threading import Event
 from queue import Queue
@@ -9,6 +10,7 @@ from mqtt_client import MQTTClient, MQTTConfig
 from dependencies import loadConfig
 from dependencies.mqtt_functions import start_subscribe_thread
 from dependencies.sqlite_database_actions import SqliteDatabaseActions
+from dependencies.frame_store import ensure_table, save_frame
 
 
 def require(config: dict, key: str):
@@ -114,6 +116,13 @@ def main():
         db[database["database_name"]].set_database_map(table_name)
         db["threshold"]=database["search_threshold"]
 
+    # The frames table is created if absent rather than being fatal, unlike the
+    # check_table_exists guard on sku_table above.
+    frames_table = settings.get("frames_table", "frames")
+    image_store = Path(settings.get("image_store", "database/images"))
+    frame_connection = db[database_details[0]["database_name"]].connection
+    ensure_table(frame_connection, frames_table)
+
     client = MQTTClient(config)
     client.connect()
 
@@ -149,6 +158,26 @@ def main():
                 except Exception as e:
                     info(f"Error transmitting data to database {e}")
                     print(f"Error transmitting data to database {e}")
+            elif message["command"] == "save_frame":
+                ack_topic = next(
+                    (t["topic"] for t in topics if t["name"] == "frame_ack"), ""
+                )
+                try:
+                    result = save_frame(
+                        message,
+                        image_store=image_store,
+                        connection=frame_connection,
+                        table=frames_table,
+                    )
+                    if ack_topic:
+                        client.publish(ack_topic, dumps(result))
+                    info(f"Saved frame {result['id']} to {result['path']}")
+                    print(f"Saved frame {result['id']} to {result['path']}")
+                except Exception as e:
+                    if ack_topic:
+                        client.publish(ack_topic, dumps({"ok": False, "error": str(e)}))
+                    info(f"Error: could not save frame: {e}")
+                    print(f"Error: could not save frame: {e}")
             else:
                 continue
 
