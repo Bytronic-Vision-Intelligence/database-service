@@ -35,3 +35,9 @@ docs/superpowers/
 
 # Captured frames written at runtime by frame_store - artefacts, not source.
 database/images/
+
+# The database is a live store the service writes to. Committing it made
+# every run a binary diff, and reverting it pulled the frames/results tables
+# out from under a running service. database/seed.sql is the tracked source
+# of truth for a fresh database.
+database/*.db

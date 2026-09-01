@@ -11,6 +11,7 @@ from dependencies import loadConfig
 from dependencies.mqtt_functions import start_subscribe_thread
 from dependencies.sqlite_database_actions import SqliteDatabaseActions
 from dependencies.frame_store import ensure_table, save_frame
+from dependencies.seed import seed_database
 from dependencies.result_store import (
     backfill_frame_id,
     ensure_table as ensure_results_table,
@@ -115,6 +116,9 @@ def main():
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
+        # The .db is gitignored, so a fresh checkout starts with an empty file.
+        # Seed it before the existence check below, which exits the service.
+        seed_database(db[database["database_name"]].connection)
         table_name = database["tables"][0]["churchill_sku_table"]
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
