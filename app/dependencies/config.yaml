@@ -22,6 +22,7 @@ database: [
 # .db stays small and retention is a file sweep.
 image_store: "database/images"
 frames_table: "frames"
+results_table: "results"
 
 # MQTT options ---------------------------------------
 topics: [
@@ -65,6 +66,19 @@ topics: [
   {
     name: "frame_ack",
     topic: "project/db/frame/saved",
+    is_subscribe: False,
+    is_trigger: False
+  }
+  ,
+  {
+    name: "save_result",
+    topic: "project/db/result/save",
+    is_subscribe: True,
+    is_trigger: True
+  },
+  {
+    name: "result_ack",
+    topic: "project/db/result/saved",
     is_subscribe: False,
     is_trigger: False
   }

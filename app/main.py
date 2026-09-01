@@ -11,6 +11,11 @@ from dependencies import loadConfig
 from dependencies.mqtt_functions import start_subscribe_thread
 from dependencies.sqlite_database_actions import SqliteDatabaseActions
 from dependencies.frame_store import ensure_table, save_frame
+from dependencies.result_store import (
+    backfill_frame_id,
+    ensure_table as ensure_results_table,
+    save_result,
+)
 
 
 def require(config: dict, key: str):
@@ -122,6 +127,8 @@ def main():
     image_store = Path(settings.get("image_store", "database/images"))
     frame_connection = db[database_details[0]["database_name"]].connection
     ensure_table(frame_connection, frames_table)
+    results_table = settings.get("results_table", "results")
+    ensure_results_table(frame_connection, results_table)
 
     client = MQTTClient(config)
     client.connect()
@@ -171,6 +178,15 @@ def main():
                     )
                     if ack_topic:
                         client.publish(ack_topic, dumps(result))
+                    linked = backfill_frame_id(
+                        frame_connection,
+                        camera_id=str(message.get("camera_id") or "unknown"),
+                        ts=str(message.get("date_time") or ""),
+                        frame_id=result["id"],
+                        table=results_table,
+                    )
+                    if linked:
+                        info(f"Back-filled {linked} result(s) with frame {result['id']}")
                     info(f"Saved frame {result['id']} to {result['path']}")
                     print(f"Saved frame {result['id']} to {result['path']}")
                 except Exception as e:
@@ -178,6 +194,26 @@ def main():
                         client.publish(ack_topic, dumps({"ok": False, "error": str(e)}))
                     info(f"Error: could not save frame: {e}")
                     print(f"Error: could not save frame: {e}")
+            elif message["command"] == "save_result":
+                ack_topic = next(
+                    (t["topic"] for t in topics if t["name"] == "result_ack"), ""
+                )
+                try:
+                    result = save_result(
+                        message,
+                        connection=frame_connection,
+                        table=results_table,
+                        frames_table=frames_table,
+                    )
+                    if ack_topic:
+                        client.publish(ack_topic, dumps(result))
+                    info(f"Saved result {result['id']} (frame {result['frame_id']})")
+                    print(f"Saved result {result['id']} (frame {result['frame_id']})")
+                except Exception as e:
+                    if ack_topic:
+                        client.publish(ack_topic, dumps({"ok": False, "error": str(e)}))
+                    info(f"Error: could not save result: {e}")
+                    print(f"Error: could not save result: {e}")
             else:
                 continue
 
