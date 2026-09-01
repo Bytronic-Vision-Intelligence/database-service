@@ -99,6 +99,10 @@ def save_frame(
     data = _decode_jpeg(payload.get("image"))
 
     relative = _relative_path(ts, camera_id)
+    # Stored posix-style. The .db is the shared artefact - ui-service reads
+    # these rows - so a frame written on Windows must still resolve on Linux.
+    # Path() accepts forward slashes on every platform, so reading is unaffected.
+    stored = relative.as_posix()
     target = Path(image_store) / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
@@ -106,7 +110,7 @@ def save_frame(
     try:
         cursor = connection.execute(
             f"INSERT INTO {table} (ts, camera_id, path, bytes) VALUES (?, ?, ?, ?)",
-            (ts, camera_id, str(relative), len(data)),
+            (ts, camera_id, stored, len(data)),
         )
         connection.commit()
     except sqlite3.Error:
@@ -114,4 +118,4 @@ def save_frame(
         target.unlink(missing_ok=True)
         raise
 
-    return {"ok": True, "id": int(cursor.lastrowid), "path": str(relative)}
+    return {"ok": True, "id": int(cursor.lastrowid), "path": stored}

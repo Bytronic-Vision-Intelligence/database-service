@@ -76,6 +76,12 @@ def test_frames_are_foldered_by_day(conn, tmp_path):
 
     assert result["path"].startswith("20260901/")
 
+    # The stored value is what ui-service reads back, so it must be posix on
+    # every platform. Only the windows-latest leg can fail this.
+    assert "\\" not in result["path"]
+    stored = conn.execute("SELECT path FROM frames").fetchone()[0]
+    assert stored == result["path"]
+
 
 def test_two_frames_in_the_same_second_do_not_overwrite_each_other(conn, tmp_path):
     first = save_frame(_payload(), image_store=tmp_path, connection=conn)
