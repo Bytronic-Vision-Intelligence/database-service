@@ -32,3 +32,6 @@ docs/superpowers/
 
 # Logs
 *.log
+
+# Captured frames written at runtime by frame_store - artefacts, not source.
+database/images/
