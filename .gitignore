@@ -4,5 +4,6 @@
 *claude
 *github
 /.vscode
+.venv
 
 docker-local/

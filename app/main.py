@@ -4,15 +4,16 @@ from dependencies import loadConfig
 from dependencies.sqlite_database_actions import SqliteDatabaseActions
 
 import time
+import argparse
 from logging import info
 from json import loads, dumps
 from threading import Event
 from queue import Queue
 from mqtt_client import MQTTClient, MQTTConfig
-#
-MQTT_BROKERS = loadConfig.return_config_value("broker_details")
-TOPICS = loadConfig.return_config_value("topics")
-DATABASE_DETAILS = loadConfig.return_config_value("database")
+
+MQTT_BROKERS = None
+TOPICS = None
+DATABASE_DETAILS = None
 
 def _wait_for_data(message:dict, queues:dict):
     '''Waits for data to be received from a dictionary of queue items, each queue item is then added to a dictionary this is a blocking function
@@ -84,13 +85,19 @@ def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseAct
     client.publish(output_topic, json_results)
     print(search_results)
 
-def main():
+def main(config_path: str | None = None):
+    global MQTT_BROKERS, TOPICS, DATABASE_DETAILS
+    loadConfig.set_config_path(config_path)
+    MQTT_BROKERS = loadConfig.return_config_value("mqtt")
+    TOPICS = loadConfig.return_config_value("topics")
+    DATABASE_DETAILS = loadConfig.return_config_value("database")
+
     config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
     for database in DATABASE_DETAILS:
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
-        table_name = database["tables"][0]["churchill_sku_table"]
+        table_name = database["tables"][0]
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
@@ -138,4 +145,24 @@ def main():
         print("Shutting down subscribe listener and exiting.")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Detection analysis service")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML config file",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Use fallback config (app/configs/config.yaml)",
+    )
+    args = parser.parse_args()
+
+    if args.test and args.config:
+        parser.error("cannot use both --test and --config")
+    if not args.test and not args.config:
+        parser.error("one of --config or --test is required")
+
+    config_path = None if args.test else args.config
+    raise SystemExit(main(config_path=config_path))
