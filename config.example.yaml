@@ -1,0 +1,103 @@
+# database-service: the store behind the line. It answers searches, adds SKUs,
+# and keeps captured frames and inference results.
+#
+# This is the documented SHAPE of a database-service configuration, and the
+# copy that ships beside the binary in a release. It is not deployment config:
+# service-orchestrator writes the real one and launches the binary pointed at
+# it with --config.
+#
+# Tracked as config.example.yaml, never as config.yaml. The orchestrator writes
+# config.yaml into this directory, and a tracked one would be overwritten by
+# every sync and then show as modified in a tree somebody is about to commit.
+
+# Topic namespace for this installation. Every topic below starts with it, and
+# service-orchestrator rewrites it per deployment -- so the shipped file is the
+# structure, not one customer's names.
+project: project
+
+mqtt:
+  mqtt_ip: localhost
+  mqtt_port: 1883
+  qos: 1
+
+  # Topics are looked up BY NAME, so a deployment can point this service
+  # anywhere but must keep these names. Every one is resolved at startup, so a
+  # renamed entry refuses to start rather than going quiet.
+  #
+  # The shape is project/<domain>/<subject>/<thing>, matching the other
+  # services: camera publishes project/camera/..., inference publishes
+  # project/inference/..., and this service owns project/database/....
+  #
+  # These previously carried three different prefixes in one file --
+  # `churchill/`, `project/`, and `churchil/` with one L. The misspelled ones
+  # were the reason depth-analysis-service's search round trip went nowhere:
+  # it publishes to project/database/search/sku_data and listens on
+  # project/database/search/matching_sku, which are the two below.
+  topics:
+    - name: add_to_table
+      topic: project/database/add/sku_data
+      is_subscribe: true
+      is_trigger: true
+
+    - name: search_table
+      topic: project/database/search/sku_data
+      is_subscribe: true
+      is_trigger: true
+
+    - name: database_output
+      topic: project/database/search/matching_sku
+      is_subscribe: false
+      is_trigger: false
+
+    # Image feeds, read only when an add_to_table command needs them, so they
+    # are subscribed but never trigger work of their own.
+    - name: depth_data
+      topic: project/camera/depth/image
+      is_subscribe: true
+      is_trigger: false
+
+    - name: colour_data
+      topic: project/camera/colour_1/image
+      is_subscribe: true
+      is_trigger: false
+
+    - name: save_frame
+      topic: project/database/frame/save
+      is_subscribe: true
+      is_trigger: true
+
+    - name: frame_ack
+      topic: project/database/frame/saved
+      is_subscribe: false
+      is_trigger: false
+
+    - name: save_result
+      topic: project/database/result/save
+      is_subscribe: true
+      is_trigger: true
+
+    - name: result_ack
+      topic: project/database/result/saved
+      is_subscribe: false
+      is_trigger: false
+
+# Settings belonging to this service alone.
+service:
+  # Captured frames are written to image_store and only their path goes in the
+  # database, so the .db stays small and retention is a file sweep.
+  image_store: "database/images"
+  frames_table: "frames"
+  results_table: "results"
+
+  databases:
+    - database_name: "churchill_database"
+      file_location: "database/churchill_database.db"
+      search_threshold: 20
+      sku_table: "sku_table"
+
+# How much this service says. It writes no log files: it prints, the
+# orchestrator forwards every line to project/logging/<service>, and
+# logging-service is the only thing that writes to disk.
+# DEBUG | INFO | WARNING | ERROR | CRITICAL
+logging:
+  level: INFO

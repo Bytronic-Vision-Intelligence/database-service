@@ -40,7 +40,6 @@ class DatabaseActions(ABC):
         try:
             cursor.execute(query, parameters)
             self.connection.commit()
-            print("Query successful")
             return cursor.fetchall()
         except Exception as err:
             raise ConnectionError(f"Error: '{err}'")
@@ -75,6 +74,5 @@ class DatabaseActions(ABC):
         try:
             results = self._map_from_database(results, self.database_map)
         except Exception as e:
-            print(f"Error: unable to map data from database: {e}")
             info(f"Error: unable to map data from database: {e}")
         return results

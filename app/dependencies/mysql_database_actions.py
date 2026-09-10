@@ -27,7 +27,6 @@ class MysqlDatabaseActions(DatabaseActions):
                     user=self.user,
                     passwd=self.password
                 )
-                print("MySQL Database connection successful")
             except Error as err:
                 raise ConnectionError(f"Error: '{err}'")
     
@@ -43,6 +42,5 @@ class MysqlDatabaseActions(DatabaseActions):
                 passwd=self.password,
                 database=self.database_name
             )
-            print("MySQL Database connection successful")
         except Error as err:
             raise ConnectionError(f"Error: '{err}'") 

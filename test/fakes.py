@@ -26,3 +26,16 @@ class FakeMQTTClient:
 
     def publish(self, topic, message):
         self.published.append((topic, message))
+
+
+class FakeThread:
+    def __init__(self):
+        self.join_called = False
+        self.alive = True
+
+    def is_alive(self):
+        return self.alive
+
+    def join(self, timeout=None):
+        self.join_called = True
+        self.alive = False
