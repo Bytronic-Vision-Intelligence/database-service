@@ -6,7 +6,7 @@ numeric fuzzy matching when the configured threshold is greater than `0`.
 
 ## Requirements
 
-- Python 3.8 or newer
+- Python 3.10 — the version CI installs and the release build freezes
 - An MQTT broker, normally available at `localhost:1883`
 
 ## Setup
@@ -20,7 +20,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Update `app/dependencies/config.yaml` with the broker, SQLite database path,
+Copy `config.example.yaml` and edit the broker, SQLite database path,
 table name, and fuzzy-search threshold. The configured table must already
 exist when the service starts.
 
@@ -87,10 +87,10 @@ The service takes its config from a file and will not start without one:
 | Invocation | Config used |
 |---|---|
 | `python app/main.py --config <path>` | the supplied file — how deployment works |
-| `python app/main.py --test` | `app/dependencies/config.yaml`, the bundled example |
 | `python app/main.py` | none; exits with an error |
 
-Required top-level keys are `broker_details`, `topics` and `database`. A
+Required top-level keys are `mqtt` (with `topics` under it) and `service`
+(with `databases` under it). A
 missing key fails at startup naming both the key and the config file, rather
 than surfacing as a `KeyError` several frames down.
 
