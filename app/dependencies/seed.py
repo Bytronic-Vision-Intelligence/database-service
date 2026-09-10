@@ -11,19 +11,36 @@ overwritten, so a restart cannot reset real data back to the sample rows.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-#: Beside this module, deliberately. The release build bundles app/dependencies
-#: (release-pipeline.yml: include-data-dirs), so the SQL travels with the code
-#: that reads it and `__file__` resolves correctly inside the frozen binary.
-#:
-#: It used to live at <repo>/database/seed.sql, reached with parents[2]. Under
-#: PyInstaller `__file__` sits inside the unpacked _MEIPASS directory, so that
-#: became /tmp/database/seed.sql -- absent, so the seed silently did not run,
-#: and the service then exited because sku_table was not there.
-SEED_SQL_PATH = Path(__file__).resolve().parent / "seed.sql"
+def _seed_sql_path() -> Path:
+    """Where the seed SQL is, in a checkout and inside a frozen binary.
+
+    The two differ. PyInstaller is given `--paths app`, so the package is
+    imported as `dependencies` and __file__ sits at <_MEIPASS>/dependencies/.
+    The data is added as `./app/dependencies:./app/dependencies`, so the SQL
+    lands at <_MEIPASS>/app/dependencies/ -- next to the package's source
+    layout, not next to the package.
+
+    Both are checked rather than guessed. Mapping the data to ./dependencies
+    instead would remove the second case, but build-binary.sh and
+    release-pipeline.yml are identical across six repositories and that is a
+    change to make in service-template, not here.
+    """
+    beside_the_module = Path(__file__).resolve().parent / "seed.sql"
+    if beside_the_module.is_file():
+        return beside_the_module
+
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        return Path(bundle) / "app" / "dependencies" / "seed.sql"
+    return beside_the_module
+
+
+SEED_SQL_PATH = _seed_sql_path()
 
 
 def _has_table(connection, table: str) -> bool:
