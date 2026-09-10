@@ -41,3 +41,14 @@ database/images/
 # out from under a running service. database/seed.sql is the tracked source
 # of truth for a fresh database.
 database/*.db
+
+# Clean tree built by docker-local/run.sh --release
+docker-local/.tree/
+docker-local/.release-check/
+
+# Release build output. The release workflow writes binaries to dist/ and zips
+# to upload/; anything that runs it outside CI leaves them in the working tree,
+# where `git add -A` would commit a 12MB binary. Pinned by
+# test/test_release_pipeline.py::test_the_release_output_paths_are_gitignored
+dist/
+upload/
