@@ -556,3 +556,20 @@ def test_the_repository_tracks_no_database_or_ci_output():
     assert not [p for p in tracked if p.endswith(".db")]
     assert "junit/test-results.xml" not in tracked
     assert "config.yaml" not in tracked
+
+
+def test_open_databases_creates_the_directory_it_needs(tmp_path):
+    """A release bundle is the binary and its config, nothing else. sqlite
+    creates the database file but not the directory holding it, so the
+    packaged service exited at startup with "unable to open database file"."""
+    location = tmp_path / "fresh" / "churchill_database.db"
+    settings = {"databases": [{"database_name": "churchill_database",
+                               "file_location": str(location),
+                               "search_threshold": 20,
+                               "sku_table": "sku_table"}]}
+
+    databases = main.open_databases(settings)
+
+    assert location.parent.is_dir()
+    assert "churchill_database" in databases
+

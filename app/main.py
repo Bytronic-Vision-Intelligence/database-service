@@ -194,7 +194,14 @@ def open_databases(settings: dict) -> dict:
     """
     databases = {}
     for entry in settings["databases"]:
-        actions = SqliteDatabaseActions(database_location=entry["file_location"])
+        location = Path(entry["file_location"])
+        # sqlite creates the file but not the directory holding it, and a
+        # release bundle is just the binary and its config -- so the packaged
+        # service died on startup with "unable to open database file" before
+        # this. frame_store does the same for the image store.
+        location.parent.mkdir(parents=True, exist_ok=True)
+
+        actions = SqliteDatabaseActions(database_location=str(location))
         # The .db is gitignored, so a fresh checkout starts with an empty file.
         # Seed it before the existence check below.
         seed_database(actions.connection)
