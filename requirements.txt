@@ -1,20 +1,16 @@
-colorama==0.4.6
-exceptiongroup==1.3.1
-iniconfig==2.3.0
-./app/dependencies/mqtt_client-1.0.0-py3-none-any.whl
-mysql==0.0.3
-mysql-connector-python==26.7.0
-mysqlclient==2.2.8
-numpy==2.2.6
-opencv-python==5.0.0.93
-packaging==26.2
+# Runtime dependencies only. Everything listed here is installed into the
+# release build and ends up inside the shipped binary, so a package that is
+# only needed to develop or test the service belongs in requirements-dev.txt
+# instead -- otherwise every customer receives a copy of it.
+
+# The MQTT client ships as a wheel in app/dependencies/ - main.py imports it
+# at module level, so it must be installed for the service to start at all.
+mqtt-client @ file:./app/dependencies/mqtt_client-1.0.0-py3-none-any.whl#sha256=3f9abdaad96aad5951e05d9d863f6a8058458ca3eb27d03a6a282bbefae863d6
 paho-mqtt==2.1.0
-pluggy==1.6.0
-Pygments==2.20.0
-pytest==9.0.3
-# Caps every test (pytest.ini: timeout). A blocking test otherwise runs the
-# CI job to GitHub's 6-hour limit instead of failing.
-pytest-timeout==2.4.0
 PyYAML==6.0.3
-tomli==2.4.1
-typing_extensions==4.16.0
+
+# The MySQL backend (app/dependencies/mysql_database_actions.py) additionally
+# needs mysql-connector-python. It is not listed here because nothing imports
+# that module: main.py runs on SQLite, which is in the standard library.
+# Install the driver by hand on a deployment that switches backend, the same
+# way camera-service handles PySpin.
