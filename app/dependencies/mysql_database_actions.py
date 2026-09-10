@@ -29,7 +29,7 @@ class MysqlDatabaseActions(DatabaseActions):
                 )
             except Error as err:
                 raise ConnectionError(f"Error: '{err}'")
-    
+
             return connection
 
     def create_db_connection(self):
@@ -43,4 +43,4 @@ class MysqlDatabaseActions(DatabaseActions):
                 database=self.database_name
             )
         except Error as err:
-            raise ConnectionError(f"Error: '{err}'") 
+            raise ConnectionError(f"Error: '{err}'")

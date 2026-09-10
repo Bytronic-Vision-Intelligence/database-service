@@ -19,7 +19,7 @@ class DatabaseActions(ABC):
     @abstractmethod
     def _connect(self):
         pass
-    
+
     @abstractmethod
     def _map_to_database(self, query):
         pass
@@ -35,7 +35,7 @@ class DatabaseActions(ABC):
         '''
         if query is None or query == "":
             raise ValueError("query cannot be empty")
-        
+
         cursor = self.connection.cursor()
         try:
             cursor.execute(query, parameters)
@@ -46,7 +46,7 @@ class DatabaseActions(ABC):
 
     def _disconnect(self):
         '''disconnects from the current database/server'''
-        if not self.connection is None:
+        if self.connection is not None:
             self.connection.disconnect()
 
     def add_sku(self,database_table, sku:dict):
@@ -56,7 +56,7 @@ class DatabaseActions(ABC):
             '''
             query, parameters = self._map_to_database(sku, table=database_table)
             self.execute_query(f"INSERT INTO {query}", parameters)
-    
+
     def search(self, database_table:str, search_details:dict, threshold:float = 0):
         '''Performs a search on a database table based on a set list of comumns and their associated data
         Args:
