@@ -80,3 +80,12 @@ def test_seeding_never_touches_an_existing_table(conn):
 
     rows = conn.execute("SELECT depth, area, perimeter FROM sku_table").fetchall()
     assert rows == [(1.0, 2.0, 3.0)], "seeding overwrote live data"
+
+
+def test_the_seed_sql_ships_inside_the_binary():
+    """It sits beside seed.py so PyInstaller's include-data-dirs carries it.
+    At <repo>/database/seed.sql it was outside the bundle, and `__file__`
+    inside a frozen binary pointed at /tmp -- so a packaged service started
+    with no sku_table and exited."""
+    assert SEED_SQL_PATH.parent.name == "dependencies"
+

@@ -15,8 +15,15 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# database-service/app/dependencies/seed.py -> database-service/database/seed.sql
-SEED_SQL_PATH = Path(__file__).resolve().parents[2] / "database" / "seed.sql"
+#: Beside this module, deliberately. The release build bundles app/dependencies
+#: (release-pipeline.yml: include-data-dirs), so the SQL travels with the code
+#: that reads it and `__file__` resolves correctly inside the frozen binary.
+#:
+#: It used to live at <repo>/database/seed.sql, reached with parents[2]. Under
+#: PyInstaller `__file__` sits inside the unpacked _MEIPASS directory, so that
+#: became /tmp/database/seed.sql -- absent, so the seed silently did not run,
+#: and the service then exited because sku_table was not there.
+SEED_SQL_PATH = Path(__file__).resolve().parent / "seed.sql"
 
 
 def _has_table(connection, table: str) -> bool:
