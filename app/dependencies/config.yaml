@@ -6,12 +6,12 @@ broker_details:
 # Database connections ---------------------------------------
 database: [
   {
-    file_location: "C:/Users/AmyHarrison/database_service/database/churchill_database.db",
-    database_name: "churchill_database",
+    file_location: "database/test_database.db",
+    database_name: "test_database",
     search_threshold: 20,
     tables: [
       {
-        churchill_sku_table: "sku_table"
+        database_table: "test_table"
       }
     ]
   }
@@ -20,32 +20,26 @@ database: [
 # MQTT options ---------------------------------------
 topics: [
   {
-    name: "add_to_table",
-    topic: "churchill/db/add/sku_data",
-    is_subscribe: True,
-    is_trigger: True
-  },
-  {
-    name: "search_table",
-    topic: "churchill/db/search/sku_data",
+    name: "request_command",
+    topic: "test/depth_analysts/search/sku_data",
     is_subscribe: True,
     is_trigger: True
   },
   {
     name: "database_output",
-    topic: "churchil/db/search/matching_sku",
+    topic: "test/database/search/matching_sku",
     is_subscribe: False,
     is_trigger: False
   },
   {
     name: "depth_data",
-    topic: "churchil/depth_camera/image/depth_image",
+    topic: "test/image/colour_image",
     is_subscribe: True,
     is_trigger: False
   },
   {
     name: "colour_data",
-    topic: "churchil/colour_camera/image/colour_image",
+    topic: "test/image/colour_image",
     is_subscribe: True,
     is_trigger: False
   }

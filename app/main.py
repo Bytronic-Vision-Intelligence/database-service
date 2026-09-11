@@ -30,8 +30,9 @@ def _wait_for_data(message:dict, queues:dict):
         except:
             continue
         try:
-            queue_item =queue["queue"].get(timeout=1)
+            queue_item =queue["queue"].get(timeout=5)
             queue_item = loads(queue_item)
+            print(f"received data from {queue.get('topic')}")
         except Exception as e:
             queue_item["image"] = None
             info(f"Error: unable to get item from queue {e}")
@@ -90,7 +91,7 @@ def main():
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
-        table_name = database["tables"][0]["churchill_sku_table"]
+        table_name = database["tables"][0]["database_table"]
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
@@ -117,14 +118,17 @@ def main():
         while True:
             time.sleep(0.1)
             message = _check_for_triggers(TOPICS)
-            if message["command"] == "search_phrase":
+            if message.get("command") == None: continue
+            
+            if message["command"] == "search_database":
                 try:
                     _fuzzy_search_database(client, message, db, db["threshold"])
 
                 except Exception as e:
-                    info(f"Error: fuzzy search fialed: {e}")
-                    print(f"Error: fuzzy search fialed: {e}")
-            elif message["command"] == "add_phrase":
+                    info(f"Error: fuzzy search failed: {e}")
+                    print(f"Error: fuzzy search failed: {e}")
+
+            elif message["command"] == "add_to_database":
                 new_dictionary_data = _wait_for_data(message, TOPICS)
                 try:
                     db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
