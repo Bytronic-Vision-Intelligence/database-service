@@ -1,6 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
-from database_actions import DatabaseActions
+from .database_actions import DatabaseActions
 
 class MysqlDatabaseActions(DatabaseActions):
     def __init__(
@@ -27,10 +27,9 @@ class MysqlDatabaseActions(DatabaseActions):
                     user=self.user,
                     passwd=self.password
                 )
-                print("MySQL Database connection successful")
             except Error as err:
                 raise ConnectionError(f"Error: '{err}'")
-    
+
             return connection
 
     def create_db_connection(self):
@@ -43,6 +42,5 @@ class MysqlDatabaseActions(DatabaseActions):
                 passwd=self.password,
                 database=self.database_name
             )
-            print("MySQL Database connection successful")
         except Error as err:
-            raise ConnectionError(f"Error: '{err}'") 
+            raise ConnectionError(f"Error: '{err}'")

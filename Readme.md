@@ -6,7 +6,7 @@ numeric fuzzy matching when the configured threshold is greater than `0`.
 
 ## Requirements
 
-- Python 3.8 or newer
+- Python 3.10 — the version CI installs and the release build freezes
 - An MQTT broker, normally available at `localhost:1883`
 
 ## Setup
@@ -20,7 +20,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Update `app/dependencies/config.yaml` with the broker, SQLite database path,
+Copy `config.example.yaml` and edit the broker, SQLite database path,
 table name, and fuzzy-search threshold. The configured table must already
 exist when the service starts.
 
@@ -79,3 +79,59 @@ Add command:
 - `test/` - pytest tests
 - `tools/` - operational helper documentation
 
+
+## Configuration
+
+The service takes its config from a file and will not start without one:
+
+| Invocation | Config used |
+|---|---|
+| `python app/main.py --config <path>` | the supplied file — how deployment works |
+| `python app/main.py` | none; exits with an error |
+
+Required top-level keys are `mqtt` (with `topics` under it) and `service`
+(with `databases` under it). A
+missing key fails at startup naming both the key and the config file, rather
+than surfacing as a `KeyError` several frames down.
+
+`database[].file_location` is repository-relative by default, so it resolves
+both under the orchestrator (which runs with `cwd` set to this directory) and
+from the repository root.
+
+### Running under service-orchestrator
+
+[service-orchestrator](https://github.com/Bytronic-Vision-Intelligence/service-orchestrator)
+launches services as `app/main.py --config <path>`, with a `.venv` in each
+service directory. This service satisfies that contract.
+
+`/config.yaml` and `/config-*.yaml` are gitignored, because the orchestrator
+writes them into the repository root at startup.
+
+## Development
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pytest test
+```
+
+### Running CI locally
+
+`docker-local/` runs `.github/workflows/` on your machine through
+[nektos/act](https://github.com/nektos/act). It needs Docker running.
+
+```bash
+./docker-local/run.sh -l          # list jobs
+./docker-local/run.sh             # full push event
+./docker-local/run.sh --fresh     # wipe the toolcache first
+```
+
+Jobs run one at a time. act shares a single `act-toolcache` volume across job
+containers, so concurrent matrix legs can corrupt each other's
+`/opt/hostedtoolcache` — which surfaces as `Fatal Python error: Bus error`
+while loading a native module. Real GitHub gives each leg its own runner.
+
+The `windows-latest` leg runs on a Linux image, so it proves job ordering, not
+Windows behaviour. And act bind-mounts the working tree rather than doing a
+fresh checkout, so anything depending on what git actually committed can pass
+locally and still fail on GitHub.

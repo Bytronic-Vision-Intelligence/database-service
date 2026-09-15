@@ -21,7 +21,7 @@ class SqliteDatabaseActions(DatabaseActions):
         '''simple setter that sets the database map
         Args:
             map: a dict of column headers'''
-    
+
         query = """SELECT name FROM pragma_table_info(?);"""
         table_columns = self.execute_query(query, (table,))
         self.database_map = [column[0] for column in table_columns]
@@ -59,8 +59,8 @@ class SqliteDatabaseActions(DatabaseActions):
         '''
         ignore_headers = {"command", "destination", "database_name"}
         for item in terms:
-            if terms[item] == None: ignore_headers.add(f"{item}")
-        
+            if terms[item] is None: ignore_headers.add(f"{item}")
+
         fields = [item for item in terms if item not in ignore_headers]
 
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
@@ -82,17 +82,17 @@ class SqliteDatabaseActions(DatabaseActions):
                 terms: a dictionary of terms to be used for the search'''
             ignore_headers = {"command", "destination", "database_name"}
             for item in terms:
-                if terms[item] == None: ignore_headers.add(f"{item}")
-            
+                if terms[item] is None: ignore_headers.add(f"{item}")
+
             fields = [item for item in terms if item not in ignore_headers]
-    
+
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
                 raise ValueError("Invalid database table name")
             if not fields:
                 raise ValueError("No data fields supplied")
             if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
                 raise ValueError("Invalid database column name")
-    
+
             if threshold < 0:
                 raise ValueError("Threshold must be non-negative")
 
@@ -146,8 +146,8 @@ class SqliteDatabaseActions(DatabaseActions):
             '''
             ignore_headers = {"command", "destination", "database_name"}
             for item in data:
-                if data[item] == None: ignore_headers.add(f"{item}")
-            
+                if data[item] is None: ignore_headers.add(f"{item}")
+
             fields = [item for item in data if item not in ignore_headers]
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
                 raise ValueError("Invalid database table name")
@@ -155,13 +155,13 @@ class SqliteDatabaseActions(DatabaseActions):
                 raise ValueError("No data fields supplied")
             if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
                 raise ValueError("Invalid database column name")
-    
+
             columns = ", ".join(fields)
             placeholders = ", ".join(["?"] * len(fields))
             query = f"{table} ({columns}) VALUES ({placeholders})"
             parameters = tuple(data[field] for field in fields)
             return query, parameters
-    
+
     def _map_from_database(self, results, table_columns):
         '''Converts the database output to a dictionary based on the database keys
         Args:
