@@ -23,7 +23,7 @@ topics:
   is_subscribe: true
   is_trigger: false
 database:
-- file_location: ../data/database/test_database.db
+- file_location: C:\Users\Churchill-01\churchill\service-orchestrator\data\database\test_database.db
   database_name: test_database
   search_threshold: 200
   tables:

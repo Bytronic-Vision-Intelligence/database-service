@@ -9,6 +9,7 @@ from json import loads, dumps
 from threading import Event
 from queue import Queue
 from mqtt_client import MQTTClient, MQTTConfig
+from sys import getsizeof
 #
 MQTT_BROKERS = loadConfig.return_config_value("broker_details")
 TOPICS = loadConfig.return_config_value("topics")
@@ -117,8 +118,15 @@ def _fuzzy_search_database(
         for topic in TOPICS
         if topic.get("name") == "database_output"
     )
-    json_results = dumps(search_results)
-    client.publish(output_topic, json_results)
+    if search_results == None:
+        client.publish(f"{output_topic}", dumps({"database_response: No matches found"}))
+        return
+    for result in search_results:
+        topic = f"{output_topic}/{result}"
+        result = dumps(search_results[result])
+        print(f"Info : database-service Packet size = {getsizeof(result)*0.00000095367432} MB")
+        client.publish(topic, result)
+
 
 def main():
     config = loadConfig.get_config()
