@@ -1,5 +1,7 @@
 from logging import info
 from abc import ABC, abstractmethod
+import uuid
+
 class DatabaseActions(ABC):
     '''a base class containing database connections and actions
     Parameters:
@@ -37,6 +39,7 @@ class DatabaseActions(ABC):
             raise ValueError("query cannot be empty")
         
         cursor = self.connection.cursor()
+        print(f"Info : Executing queory: {query}")
         try:
             cursor.execute(query, parameters)
             self.connection.commit()
@@ -78,3 +81,9 @@ class DatabaseActions(ABC):
             print(f"Error: unable to map data from database: {e}")
             info(f"Error: unable to map data from database: {e}")
         return results
+
+    def _generate_uid(self):
+            '''returns a unique identifier'''
+            uid = str(uuid.uuid4())
+            print(f"Info : UID generated {uid}")
+            return uid
