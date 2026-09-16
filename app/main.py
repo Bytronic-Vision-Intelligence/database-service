@@ -89,7 +89,13 @@ def _check_for_triggers(triggers:dict):
 
     return message
 
-def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseActions, threshold:float=0):
+def _fuzzy_search_database(
+        client:MQTTClient, 
+        message:dict, 
+        db:SqliteDatabaseActions,
+        headers,
+        threshold:float=0
+    ):
     '''performs a fuzzy search on the current database and publishes the results to a given MQTT broker
     Args:
         client: an MQTT client object
@@ -102,10 +108,10 @@ def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseAct
 
     database_name = message.get("database_name")
     if database_name == None: raise ValueError(f"Error : database name cannot be None")
-    table_name = message.get("destinateion")
+    table_name = message.get("database_table")
     if table_name == None: raise ValueError(f"Error : table name cannot be None")
 
-    search_results = db[database_name].search(table_name, message, threshold)
+    search_results = db[database_name].search(table_name, message,headers, threshold)
     output_topic = next(
         topic["topic"]
         for topic in TOPICS
@@ -125,6 +131,9 @@ def main():
             database_location=database["file_location"]
         )}
         table_name = database["tables"][0]["database_table"]
+        headers = database["tables"][0]["columns"]
+        search_headers = database["tables"][0]["searchable_columns"]
+        print(headers)
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
@@ -153,26 +162,61 @@ def main():
             message = _check_for_triggers(TOPICS)
             if message.get("database_instruction") == "search_database":
                 try:
-                    search_data = message
                     colour_image = next((t for t in TOPICS if t.get("name") == "colour_data"), None)
                     depth_image = next((t for t in TOPICS if t.get("name") == "depth_data"), None)
                     depth_data = next((t for t in TOPICS if t.get("name") == "request_command"), None)
-                    search_data = check_for_triggers(colour_image, True)
-                    search_data = check_for_triggers(depth_image, True)
-                    search_data = check_for_triggers(depth_data, True)
-                    print(search_data)
-                    _fuzzy_search_database(client, search_data, db, db["threshold"])
+
+                    colour_image_out = check_for_triggers(colour_image, True)
+                    depth_image_out = check_for_triggers(depth_image, True)
+                    depth_data_out = check_for_triggers(depth_data, True)
+                    search_data = {
+                        **message,
+                        **colour_image_out, 
+                        **depth_image_out, 
+                        **depth_data_out
+                    }
+
+                    _fuzzy_search_database(
+                        client, 
+                        search_data, 
+                        db, 
+                        search_headers,
+                        db["threshold"]
+                    )
 
                 except Exception as e:
                     info(f"Error: {service_id} fuzzy search failed: {e}")
                     print(f"Error: {service_id} fuzzy search failed: {e}")
 
             elif message.get("database_instruction") == "write_database":
-                new_dictionary_data = message
-                new_dictionary_data = _wait_for_data(message, TOPICS)
+                write_data = message
+                print(f"Info : write received, origional message = {write_data}")
+                colour_image = next((t for t in TOPICS if t.get("name") == "colour_data"), None)
+                depth_image = next((t for t in TOPICS if t.get("name") == "depth_data"), None)
+                depth_data = next((t for t in TOPICS if t.get("name") == "request_command"), None)
+
+                colour_image_out = check_for_triggers(colour_image, True)
+                colour_image_out["colour_data"] = colour_image_out.pop("image")
+
+                depth_image_out = check_for_triggers(depth_image, True)
+                depth_image_out["depth_data"] = depth_image_out.pop("image")
+                depth_data_out = check_for_triggers(depth_data, True)
+
+                write_data = {
+                    **write_data,
+                    **colour_image_out, 
+                    **depth_image_out, 
+                    **depth_data_out
+                }
+                write_data["sku"] = "TBD"
                 try:
-                    db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
-                    print(f"Info : data added to database {message.get('database_name')}, {message.get('destination')}")
+                    db[write_data["database_name"]].add_sku(
+                        write_data["database_table"], 
+                        write_data,
+                        headers
+                    )
+
+                    print(f"Info : data added to database {write_data.get('database_name')}, {write_data.get('destination')}")
                 except Exception as e:
                     info(f"Error transmitting data to database {e}")
                     print(f"Error transmitting data to database {e}")

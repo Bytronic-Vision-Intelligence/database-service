@@ -25,6 +25,18 @@ topics:
 database:
 - file_location: ../data/database/test_database.db
   database_name: test_database
-  search_threshold: 20
+  search_threshold: 200
   tables:
   - database_table: test_table
+    columns:
+    - id
+    - depth
+    - perimeter
+    - radius
+    - depth_data
+    - colour_data
+    - sku
+    searchable_columns:
+    - depth
+    - perimeter
+    - radius

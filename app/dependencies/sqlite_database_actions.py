@@ -49,7 +49,12 @@ class SqliteDatabaseActions(DatabaseActions):
         finally:
             cursor.close()
 
-    def _construct_search_query(self, terms:dict, database_table:str):
+    def _construct_search_query(
+            self, 
+            terms:dict, 
+            database_table:str,
+            headers:list
+        ):
         '''creates a search queory from a dictionary of terms
         Args:
             terms: a dictionary of terms to be used for the search
@@ -57,12 +62,8 @@ class SqliteDatabaseActions(DatabaseActions):
             query: a string containing the correctly formatted queory
             parameters: a list of parameters
         '''
-        ignore_headers = {"command", "destination", "database_name"}
-        for item in terms:
-            if terms[item] == None: ignore_headers.add(f"{item}")
         
-        fields = [item for item in terms if item not in ignore_headers]
-
+        fields = headers
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
             raise ValueError("Invalid database table name")
         if not fields:
@@ -76,44 +77,46 @@ class SqliteDatabaseActions(DatabaseActions):
         parameters = tuple(terms[field] for field in fields)
         return query, parameters
 
-    def _construct_fuzzy_search_query(self, terms:dict, database_table:str, threshold:int):
-            '''creates a search queory from a dictionary of terms
-            Args:
-                terms: a dictionary of terms to be used for the search'''
-            ignore_headers = {"command", "destination", "database_name"}
-            for item in terms:
-                if terms[item] == None: ignore_headers.add(f"{item}")
-            
-            fields = [item for item in terms if item not in ignore_headers]
-    
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
-                raise ValueError("Invalid database table name")
-            if not fields:
-                raise ValueError("No data fields supplied")
-            if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
-                raise ValueError("Invalid database column name")
-    
-            if threshold < 0:
-                raise ValueError("Threshold must be non-negative")
+    def _construct_fuzzy_search_query(
+            self, 
+            terms:dict, 
+            database_table:str, 
+            threshold:int, 
+            headers:list
+        ):
+        '''creates a search queory from a dictionary of terms
+        Args:
+            terms: a dictionary of terms to be used for the search'''
+        
+        fields = headers
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
+            raise ValueError("Invalid database table name")
+        if not fields:
+            raise ValueError("No data fields supplied")
+        if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
+            raise ValueError("Invalid database column name")
 
-            conditions = [
-                f"ABS({field} - ?) <= ?"
-                for field in fields
-            ]
+        if threshold < 0:
+            raise ValueError("Threshold must be non-negative")
 
-            query = f"""
-                SELECT *
-                FROM {database_table}
-                WHERE {" AND ".join(conditions)}
-            """.strip()
+        conditions = [
+            f"ABS({field} - ?) <= ?"
+            for field in fields
+        ]
 
-            parameters = tuple(
-                value
-                for field in fields
-                for value in (terms[field], threshold)
-            )
+        query = f"""
+            SELECT *
+            FROM {database_table}
+            WHERE {" AND ".join(conditions)}
+        """.strip()
 
-            return query, parameters
+        parameters = tuple(
+            value
+            for field in fields
+            for value in (terms[field], threshold)
+        )
+
+        return query, parameters
 
     def create_table(self, table_name:str, database_columns:dict):
         '''Creates a table within a given database - non functioning, add chore to fix this
@@ -137,19 +140,19 @@ class SqliteDatabaseActions(DatabaseActions):
         finally:
             cursor.close()
 
-    def _map_to_database(self, data:dict[str, any], table):
+    def _map_to_database(self, data:dict[str, any], table, include_headers:dict):
         '''converts a dictionary into a valid format to be sent to an sql server based on the database structure
         Args:
             data: a dictionary containing the comumn name as key and the data as data
         Returns:
             query: a string formatted correctly as an sql request
         '''
-        ignore_headers = {"command", "destination", "database_name"}
-        for item in data:
-            if data[item] == None: ignore_headers.add(f"{item}")
+
         data["id"] = self._generate_uid()
         
-        fields = [item for item in data if item not in ignore_headers]
+        fields =include_headers
+        print(f"Info : Headers: {fields}")
+
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
             raise ValueError("Invalid database table name")
         if not fields:
@@ -160,7 +163,16 @@ class SqliteDatabaseActions(DatabaseActions):
         columns = ", ".join(fields)
         placeholders = ", ".join(["?"] * len(fields))
         query = f"{table} ({columns}) VALUES ({placeholders})"
-        parameters = tuple(data[field] for field in fields)
+        parameters = ()
+        for field in fields:
+            try:
+                print(f"added data to parameters {field} {data[field]}")
+                parameters += (data[field],)
+            except:
+                print(f"could not add data to parameters {data[field]}")
+                parameters += ("None",)
+                
+        print("Info : data- mapped")
         return query, parameters
     
     def _map_from_database(self, results, table_columns):

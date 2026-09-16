@@ -27,7 +27,7 @@ class DatabaseActions(ABC):
         pass
 
     @abstractmethod
-    def _map_from_database(self, result, map):
+    def _map_from_database(self, result, map, headers):
         pass
 
     def execute_query(self, query, parameters=None):
@@ -46,22 +46,28 @@ class DatabaseActions(ABC):
             print("Query successful")
             return cursor.fetchall()
         except Exception as err:
-            raise ConnectionError(f"Error: '{err}'")
+            raise ConnectionError(f"Error: execute_query '{err}'")
 
     def _disconnect(self):
         '''disconnects from the current database/server'''
         if not self.connection is None:
             self.connection.disconnect()
 
-    def add_sku(self,database_table, sku:dict):
+    def add_sku(self,database_table, sku:dict, headers:list):
             '''Adds a new sku to a database table.
             Args:
                 sku: a dictionary containing the sku data in the following format: depth image: binary, colour image: binary, depth: float, area: float, diameter: float
             '''
-            query, parameters = self._map_to_database(sku, table=database_table)
+            query, parameters = self._map_to_database(sku, database_table, headers)
+            print("Info : database actions - data mapped")
             self.execute_query(f"INSERT INTO {query}", parameters)
     
-    def search(self, database_table:str, search_details:dict, threshold:float = 0):
+    def search(
+            self, 
+            database_table:str, 
+            search_details:dict,
+            headers:list,
+            threshold:float = 0):
         '''Performs a search on a database table based on a set list of comumns and their associated data
         Args:
             database_table: a string value containing the database table that will be targeted for the search
@@ -70,10 +76,11 @@ class DatabaseActions(ABC):
             search_results: a dictionary of results from the server
         '''
         if threshold == 0:
-            search_term, parameters = self._construct_search_query(search_details, database_table)
+            search_term, parameters = self._construct_search_query(search_details, database_table, headers)
         else:
-            search_term, parameters = self._construct_fuzzy_search_query(search_details, database_table, threshold)
+            search_term, parameters = self._construct_fuzzy_search_query(search_details, database_table, threshold, headers)
         query = f"{search_term}"
+
         results = self.execute_query(query, parameters)
         try:
             results = self._map_from_database(results, self.database_map)
