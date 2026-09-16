@@ -56,6 +56,7 @@ def _wait_for_data(message:dict, queues:dict):
         try:
             queue_item =queue["queue"].get(timeout=5)
             queue_item = loads(queue_item)
+            print(f"received data from {queue.get('topic')}")
         except Exception as e:
             queue_item["image"] = None
             info(f"Error: unable to get item from queue {e}")
@@ -163,8 +164,8 @@ def main():
                     _fuzzy_search_database(client, search_data, db, db["threshold"])
 
                 except Exception as e:
-                    info(f"Error: {service_id} fuzzy search fialed: {e}")
-                    print(f"Error: {service_id} fuzzy search fialed: {e}")
+                    info(f"Error: {service_id} fuzzy search failed: {e}")
+                    print(f"Error: {service_id} fuzzy search failed: {e}")
 
             elif message.get("database_instruction") == "write_database":
                 new_dictionary_data = message
