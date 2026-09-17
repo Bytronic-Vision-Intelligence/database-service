@@ -40,34 +40,6 @@ def check_for_triggers(trigger:dict, is_blocking:bool=False, timeout:float = 10)
 
     return message
 
-def _wait_for_data(message:dict, queues:dict):
-    '''Waits for data to be received from a dictionary of queue items, each queue item is then added to a dictionary this is a blocking function
-    Args:
-        message: a dictionary of data headings and data, this can be left unformatted if this is the first call
-        queues: a dictionary of Queues to retreive data from
-    Returns:
-        data_json: a dictionary of data items with new information appended into them'''
-    data_json = dict()
-    queue_item = dict()
-    for queue in queues:
-        try:
-            if not queue["is_subscribe"] or queue["is_trigger"]: continue
-        except:
-            continue
-        try:
-            queue_item =queue["queue"].get(timeout=5)
-            queue_item = loads(queue_item)
-            print(f"received data from {queue.get('topic')}")
-        except Exception as e:
-            queue_item["image"] = None
-            info(f"Error: unable to get item from queue {e}")
-            print(f"Error: unable to get item from queue {e}")
-
-        if queue_item.get("image"):
-            data_json[f"{queue['name']}"] = queue_item.get("image")
-
-    return data_json
-
 def _check_for_triggers(triggers:dict):
     '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
     Args:
@@ -107,6 +79,9 @@ def _fuzzy_search_database(
     if message is None: raise ValueError("Error: message cannot be empty")
     if db is None: raise ValueError("Error: no database object detected")
 
+    result_packet = dict()
+    response = dict()
+
     database_name = message.get("database_name")
     if database_name == None: raise ValueError(f"Error : database name cannot be None")
     table_name = message.get("database_table")
@@ -118,20 +93,31 @@ def _fuzzy_search_database(
         for topic in TOPICS
         if topic.get("name") == "database_output"
     )
-    if search_results == None:
-        client.publish(f"{output_topic}", dumps({"database_response: No matches found"}))
-        return
-    for result in search_results:
-        topic = f"{output_topic}/{result}"
-        result = dumps(search_results[result])
-        print(f"Info : database-service Packet size = {getsizeof(result)*0.00000095367432} MB")
-        client.publish(topic, result)
+    
+    response["matches_found"]=len(search_results)
+    client.publish(f"{output_topic}", dumps(response))
+    
+    if len(search_results) == 0:return
+    packet_list = []
+    for candidate in search_results:
+        packet = dict()
+        candidate_details = search_results[candidate]
+        packet["topic"] = f"{output_topic}/{candidate}"
+        packet["payload"] = {
+            "packet_number": candidate,
+            "sku":candidate_details.get("sku", 0000),
+            "id":candidate_details.get("id",0000),
+            "colour_data": candidate_details.get("colour_data"),
+        }
+        packet_list.append(packet)
+        print(f"Info : database-service Packet size = {getsizeof(candidate)*0.00000095367432} MB")
+                
 
+    client.publish_many(packet_list)
 
 def main():
     config = loadConfig.get_config()
     service_id = config.get("service_id", "database_1")
-
     print(f"INFO : {service_id} starting \n\r")
     config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
     for database in DATABASE_DETAILS:

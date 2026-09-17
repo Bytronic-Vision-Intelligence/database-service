@@ -1,6 +1,7 @@
 broker_details:
   mqtt_ip: localhost
   mqtt_port: 1883
+  subtopic_count: 5
 topics:
 - name: hmi_request
   topic: churchill/ui/ui_1/instruction
@@ -23,7 +24,7 @@ topics:
   is_subscribe: true
   is_trigger: false
 database:
-- file_location: C:\Users\Churchill-01\churchill\service-orchestrator\data\database\test_database.db
+- file_location: ../data/database/test_database.db
   database_name: test_database
   search_threshold: 200
   tables:
