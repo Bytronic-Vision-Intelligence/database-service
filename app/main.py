@@ -16,51 +16,20 @@ TOPICS = loadConfig.return_config_value("topics")
 DATABASE_DETAILS = loadConfig.return_config_value("database")
 global service_id
 
-def check_for_triggers(trigger:dict, is_blocking:bool=False, timeout:float = 10):
-    '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
-    Args:
-        triggers: a dictionary of topics
-        is_blocking: a boolean value that controls the blocking functionality
-        timout: a float that determines the timout in s
-    Returns:
-        message: the message received from the trigger as dictionary'''
-
-    if not trigger:
-        raise ValueError("Error : trigger cannot be empty")
-    message = {"image": None}
-
-    if is_blocking:
-        message = loads(trigger["queue"].get(timeout=timeout))
-        return message
-    
-    try:
-        message = loads(trigger["queue"].get_nowait())
-    except Exception as e:
-        if e != KeyError: info(f"error occured when checking for trigger {e}")
-
-    return message
-
-def _check_for_triggers(triggers:dict):
-    '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
-    Args:
-        triggers: a dictionary of topics
-    Returns:
-        message: the message received from the trigger as dictionary'''
-    message = {"command": None}
-
-    for trigger in triggers:
-        try:
-            if not trigger["is_trigger"]:continue
-        except:
-            continue
-
-        try:
-            message = loads(trigger["queue"].get_nowait())
-        except Exception as e:
-            if e != KeyError: info(f"error occured when checking for trigger {e}")
-            continue
-
-    return message
+def _setup_database(database:dict):
+    '''used to setup a database'''
+    db = {database["database_name"]: SqliteDatabaseActions(
+        database_location=database["file_location"]
+    )}
+    table_name = database["tables"][0]["database_table"]
+    headers = database["tables"][0]["columns"]
+    search_headers = database["tables"][0]["searchable_columns"]
+    print(headers)
+    if not db[database["database_name"]].check_table_exists(table_name):
+        raise ConnectionError(f"Error : Could not connect to table {table_name}")
+    db[database["database_name"]].set_database_map(table_name)
+    db["threshold"]=database["search_threshold"]
+    return db, search_headers
 
 def _fuzzy_search_database(
         client:MQTTClient, 
@@ -98,68 +67,42 @@ def _fuzzy_search_database(
     client.publish(f"{output_topic}", dumps(response))
     
     if len(search_results) == 0:return
-    packet_list = []
-    for candidate in search_results:
-        packet = dict()
-        candidate_details = search_results[candidate]
-        packet["topic"] = f"{output_topic}/{candidate}"
-        packet["payload"] = {
-            "packet_number": candidate,
-            "sku":candidate_details.get("sku", 0000),
-            "id":candidate_details.get("id",0000),
-            "colour_data": candidate_details.get("colour_data"),
-        }
-        packet_list.append(packet)
-        print(f"Info : database-service Packet size = {getsizeof(candidate)*0.00000095367432} MB")
-                
 
+    packet_list = packetize_results(search_results)
     client.publish_many(packet_list)
 
 def main():
     config = loadConfig.get_config()
+    broker_details = config.get('broker_details')
     service_id = config.get("service_id", "database_1")
+    topics = loadConfig.return_config_value("topics")
     print(f"INFO : {service_id} starting \n\r")
-    config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
-    for database in DATABASE_DETAILS:
-        db = {database["database_name"]: SqliteDatabaseActions(
-            database_location=database["file_location"]
-        )}
-        table_name = database["tables"][0]["database_table"]
-        headers = database["tables"][0]["columns"]
-        search_headers = database["tables"][0]["searchable_columns"]
-        print(headers)
-        if not db[database["database_name"]].check_table_exists(table_name):
-            raise ConnectionError(f"Error : Could not connect to table {table_name}")
-        db[database["database_name"]].set_database_map(table_name)
-        db["threshold"]=database["search_threshold"]
 
-    client = MQTTClient(config)
+    mqtt_config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
+
+    db_list = []
+    for database in DATABASE_DETAILS:
+        db, search_headers = _setup_database(database)
+        db_list.append([db, search_headers])
+
+    client = MQTTClient(mqtt_config)
     client.connect()
 
-    stop_event = Event()
-    for topic in TOPICS:
-        if not topic["is_subscribe"]:
-            continue
-        topic["queue"] = Queue()
-        
-        topic["thread"] = start_subscribe_thread(
-            MQTT_BROKERS["mqtt_ip"], 
-            MQTT_BROKERS["mqtt_port"], 
-            topic["topic"], 
-            topic["queue"],
-            stop_event
-        )
+    topics = create_topic_listners(broker_details, topics)
+
+    # these need to be made more generic, at some point a function needs to be made that will handle
+    # taking info from the config and creating these
+    colour_image = next((t for t in topics if t.get("name") == "colour_data"), None)
+    depth_image = next((t for t in topics if t.get("name") == "depth_data"), None)
+    depth_data = next((t for t in topics if t.get("name") == "request_command"), None)
+    ui_request = next((t for t in topics if t.get("name") == "hmi_request"), None)
 
     try:
         while True:
             time.sleep(0.1)
-            message = _check_for_triggers(TOPICS)
+            message = check_for_triggers(ui_request)
             if message.get("database_instruction") == "search_database":
                 try:
-                    colour_image = next((t for t in TOPICS if t.get("name") == "colour_data"), None)
-                    depth_image = next((t for t in TOPICS if t.get("name") == "depth_data"), None)
-                    depth_data = next((t for t in TOPICS if t.get("name") == "request_command"), None)
-
                     colour_image_out = check_for_triggers(colour_image, True)
                     depth_image_out = check_for_triggers(depth_image, True)
                     depth_data_out = check_for_triggers(depth_data, True)
@@ -184,10 +127,6 @@ def main():
 
             elif message.get("database_instruction") == "write_database":
                 write_data = message
-                print(f"Info : write received, origional message = {write_data}")
-                colour_image = next((t for t in TOPICS if t.get("name") == "colour_data"), None)
-                depth_image = next((t for t in TOPICS if t.get("name") == "depth_data"), None)
-                depth_data = next((t for t in TOPICS if t.get("name") == "request_command"), None)
 
                 colour_image_out = check_for_triggers(colour_image, True)
                 colour_image_out["colour_data"] = colour_image_out.pop("image")

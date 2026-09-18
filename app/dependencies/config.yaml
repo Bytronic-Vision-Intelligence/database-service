@@ -6,7 +6,7 @@ broker_details:
 # Database connections ---------------------------------------
 database: [
   {
-    file_location: "database/test_database.db",
+    file_location: C:\Users\AmyHarrison\database_service\database\test_database.dbdatabase/test_database.db,
     database_name: "test_database",
     search_threshold: 20,
     tables: [

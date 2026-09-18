@@ -16,15 +16,15 @@ topics:
   is_subscribe: False,
   is_trigger: false
 - name: depth_data
-  topic: churchill/camera/depth_1/image
+  topic: churchill/camera/camera_1/colour_image
   is_subscribe: true
   is_trigger: false
 - name: colour_data
-  topic: churchill/camera/colour_1/image
+  topic: churchill/camera/camera_1/colour_image
   is_subscribe: true
   is_trigger: false
 database:
-- file_location: ../data/database/test_database.db
+- file_location: C:\Users\AmyHarrison\database_service\database\test_database.db
   database_name: test_database
   search_threshold: 200
   tables:
