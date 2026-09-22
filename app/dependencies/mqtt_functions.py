@@ -21,7 +21,7 @@ def subscribe_listener(ip: str, port: int, trigger_topic: str, result_queue: Que
 
     def _on_message(topic: str, payload: str) -> None:
         """Hand a received payload to the main thread."""
-        info("Request received:", topic)
+        info("Request received: %s", topic)
         result_queue.put(payload)
 
     client.subscribe(trigger_topic, _on_message)
@@ -101,33 +101,6 @@ def create_subtopic_listners(
         subtopic = None
     return subtopic_list
 
-def check_for_triggers(trigger:dict, is_blocking:bool=False, timeout:float = 10):
-    '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
-    Args:
-        triggers: a dictionary of topics
-        is_blocking: a boolean value that controls the blocking functionality
-        timout: a float that determines the timout in s
-    Returns:
-        message: the message received from the trigger as dictionary'''
-
-    if not trigger:
-        raise ValueError("Error : trigger cannot be empty")
-    message = {"image": None}
-
-    if is_blocking:
-        try:
-            message = loads(trigger["queue"].get(timeout=timeout))
-            return message
-        except Exception as e:
-            if e != KeyError: info(f"error occured when checking for trigger {e}")
-    
-    try:
-        message = loads(trigger["queue"].get_nowait())
-    except Exception as e:
-        if e != KeyError: info(f"error occured when checking for trigger {e}")
-
-    return message
-
 def packetize_results(root_message:any, results:dict, results_map:list[str], topic:str):
     '''splits results into packets and then wraps then appropriately for publication
     Args:
@@ -178,8 +151,7 @@ def check_trigger(trigger:dict, is_blocking:bool=False, timeout:float = 10):
         message = loads(trigger["queue"].get_nowait())
     except (JSONDecodeError, TypeError) as exc:
         info(f"Discarding malformed payload on {trigger['topic']}: {exc}")
-        info(f"Discarding malformed payload on {trigger['topic']}: {exc}")
-    except:
+    except Exception:
         return message
 
     return message
