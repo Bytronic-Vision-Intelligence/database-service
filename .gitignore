@@ -10,3 +10,5 @@ docker-local/
 *.dll
 *site-packages
 *.venv
+
+*config*
