@@ -9,61 +9,35 @@ from json import loads, dumps
 from threading import Event
 from queue import Queue
 from mqtt_client import MQTTClient, MQTTConfig
+from sys import getsizeof
 #
 MQTT_BROKERS = loadConfig.return_config_value("broker_details")
 TOPICS = loadConfig.return_config_value("topics")
 DATABASE_DETAILS = loadConfig.return_config_value("database")
+global service_id
 
-def _wait_for_data(message:dict, queues:dict):
-    '''Waits for data to be received from a dictionary of queue items, each queue item is then added to a dictionary this is a blocking function
-    Args:
-        message: a dictionary of data headings and data, this can be left unformatted if this is the first call
-        queues: a dictionary of Queues to retreive data from
-    Returns:
-        data_json: a dictionary of data items with new information appended into them'''
-    if message is None: raise ValueError("Error: Message cannot be empty")
-    data_json = message
-    queue_item = dict()
-    for queue in queues:
-        try:
-            if not queue["is_subscribe"] or queue["is_trigger"]: continue
-        except:
-            continue
-        try:
-            queue_item =queue["queue"].get(timeout=1)
-            queue_item = loads(queue_item)
-        except Exception as e:
-            queue_item["image"] = None
-            info(f"Error: unable to get item from queue {e}")
-            print(f"Error: unable to get item from queue {e}")
+def _setup_database(database:dict):
+    '''used to setup a database'''
+    db = {database["database_name"]: SqliteDatabaseActions(
+        database_location=database["file_location"]
+    )}
+    table_name = database["tables"][0]["database_table"]
+    headers = database["tables"][0]["columns"]
+    search_headers = database["tables"][0]["searchable_columns"]
+    print(headers)
+    if not db[database["database_name"]].check_table_exists(table_name):
+        raise ConnectionError(f"Error : Could not connect to table {table_name}")
+    db[database["database_name"]].set_database_map(table_name)
+    db["threshold"]=database["search_threshold"]
+    return db, search_headers
 
-        data_json[f"{queue['name']}"] = queue_item["image"]
-
-    return data_json
-
-def _check_for_triggers(triggers:dict):
-    '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
-    Args:
-        triggers: a dictionary of topics
-    Returns:
-        message: the message received from the trigger as dictionary'''
-    message = {"command": None}
-
-    for trigger in triggers:
-        try:
-            if not trigger["is_trigger"]:continue
-        except:
-            continue
-
-        try:
-            message = loads(trigger["queue"].get_nowait())
-        except Exception as e:
-            if e != KeyError: info(f"error occured when checking for trigger {e}")
-            continue
-
-    return message
-
-def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseActions, threshold:float=0):
+def _fuzzy_search_database(
+        client:MQTTClient, 
+        message:dict, 
+        db:SqliteDatabaseActions,
+        headers,
+        threshold:float=0
+    ):
     '''performs a fuzzy search on the current database and publishes the results to a given MQTT broker
     Args:
         client: an MQTT client object
@@ -74,60 +48,108 @@ def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseAct
     if message is None: raise ValueError("Error: message cannot be empty")
     if db is None: raise ValueError("Error: no database object detected")
 
-    search_results = db[message["database_name"]].search(message["destination"], message, threshold)
+    result_packet = dict()
+    response = dict()
+
+    database_name = message.get("database_name")
+    if database_name == None: raise ValueError(f"Error : database name cannot be None")
+    table_name = message.get("database_table")
+    if table_name == None: raise ValueError(f"Error : table name cannot be None")
+
+    search_results = db[database_name].search(table_name, message,headers, threshold)
     output_topic = next(
         topic["topic"]
         for topic in TOPICS
-        if not topic["is_subscribe"]
+        if topic.get("name") == "database_output"
     )
-    json_results = dumps(search_results)
-    client.publish(output_topic, json_results)
-    print(search_results)
+    
+    response["matches_found"]=len(search_results)
+    client.publish(f"{output_topic}", dumps(response))
+    
+    if len(search_results) == 0:return
+
+    packet_list = packetize_results(search_results)
+    client.publish_many(packet_list)
 
 def main():
-    config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
-    for database in DATABASE_DETAILS:
-        db = {database["database_name"]: SqliteDatabaseActions(
-            database_location=database["file_location"]
-        )}
-        table_name = database["tables"][0]["churchill_sku_table"]
-        if not db[database["database_name"]].check_table_exists(table_name):
-            raise ConnectionError(f"Error : Could not connect to table {table_name}")
-        db[database["database_name"]].set_database_map(table_name)
-        db["threshold"]=database["search_threshold"]
+    config = loadConfig.get_config()
+    broker_details = config.get('broker_details')
+    service_id = config.get("service_id", "database_1")
+    topics = loadConfig.return_config_value("topics")
+    print(f"INFO : {service_id} starting \n\r")
 
-    client = MQTTClient(config)
+    mqtt_config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
+
+    db_list = []
+    for database in DATABASE_DETAILS:
+        db, search_headers = _setup_database(database)
+        db_list.append([db, search_headers])
+
+    client = MQTTClient(mqtt_config)
     client.connect()
 
-    stop_event = Event()
-    for topic in TOPICS:
-        if not topic["is_subscribe"]:
-            continue
-        topic["queue"] = Queue()
-        
-        topic["thread"] = start_subscribe_thread(
-            MQTT_BROKERS["mqtt_ip"], 
-            MQTT_BROKERS["mqtt_port"], 
-            topic["topic"], 
-            topic["queue"],
-            stop_event
-        )
+    topics = create_topic_listners(broker_details, topics)
+
+    # these need to be made more generic, at some point a function needs to be made that will handle
+    # taking info from the config and creating these
+    colour_image = next((t for t in topics if t.get("name") == "colour_data"), None)
+    depth_image = next((t for t in topics if t.get("name") == "depth_data"), None)
+    depth_data = next((t for t in topics if t.get("name") == "request_command"), None)
+    ui_request = next((t for t in topics if t.get("name") == "hmi_request"), None)
 
     try:
         while True:
             time.sleep(0.1)
-            message = _check_for_triggers(TOPICS)
-            if message["command"] == "search_phrase":
+            message = check_for_triggers(ui_request)
+            if message.get("database_instruction") == "search_database":
                 try:
-                    _fuzzy_search_database(client, message, db, db["threshold"])
+                    colour_image_out = check_for_triggers(colour_image, True)
+                    depth_image_out = check_for_triggers(depth_image, True)
+                    depth_data_out = check_for_triggers(depth_data, True)
+                    search_data = {
+                        **message,
+                        **colour_image_out, 
+                        **depth_image_out, 
+                        **depth_data_out
+                    }
+
+                    _fuzzy_search_database(
+                        client, 
+                        search_data, 
+                        db, 
+                        search_headers,
+                        db["threshold"]
+                    )
 
                 except Exception as e:
-                    info(f"Error: fuzzy search fialed: {e}")
-                    print(f"Error: fuzzy search fialed: {e}")
-            elif message["command"] == "add_phrase":
-                new_dictionary_data = _wait_for_data(message, TOPICS)
+                    info(f"Error: {service_id} fuzzy search failed: {e}")
+                    print(f"Error: {service_id} fuzzy search failed: {e}")
+
+            elif message.get("database_instruction") == "write_database":
+                write_data = message
+
+                colour_image_out = check_for_triggers(colour_image, True)
+                colour_image_out["colour_data"] = colour_image_out.pop("image")
+
+                depth_image_out = check_for_triggers(depth_image, True)
+                depth_image_out["depth_data"] = depth_image_out.pop("image")
+                depth_data_out = check_for_triggers(depth_data, True)
+
+                write_data = {
+                    **write_data,
+                    **colour_image_out, 
+                    **depth_image_out, 
+                    **depth_data_out
+                }
+                write_data["sku"] = "TBD"
                 try:
-                    db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
+                    db[write_data["database_name"]].add_sku(
+                        write_data["database_table"], 
+                        write_data,
+                        headers
+                    )
+
+                    print(f"Info : data added to database {write_data.get('database_name')}, {write_data.get('destination')}")
                 except Exception as e:
                     info(f"Error transmitting data to database {e}")
                     print(f"Error transmitting data to database {e}")
@@ -135,7 +157,7 @@ def main():
                 continue
 
     except KeyboardInterrupt:
-        print("Shutting down subscribe listener and exiting.")
+        print(f"Info : {service_id} Shutting down subscribe listener and exiting.")
 
 if __name__ == "__main__":
     main()
