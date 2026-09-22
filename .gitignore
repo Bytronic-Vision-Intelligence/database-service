@@ -12,3 +12,4 @@ docker-local/
 *.venv
 
 *config*
+*.db
