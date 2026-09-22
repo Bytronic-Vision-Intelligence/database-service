@@ -1,0 +1,6 @@
+{
+    "database": "path/to/database.db",
+    "table": "table_name",
+    "heading_1": "entry",
+    "heading_2": "entry"
+}
