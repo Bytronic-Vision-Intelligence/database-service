@@ -34,7 +34,10 @@ def test_construct_search_query_drops_control_keys_and_nulls(db):
         "diameter": 100.0,
         "area": None,
     }
-    query, parameters = db._construct_search_query(terms, "sku_table")
+    # The columns to match on are passed in rather than inferred from `terms`:
+    # the message also carries control keys (command, destination) and the
+    # caller -- not this method -- knows which columns are searchable.
+    query, parameters = db._construct_search_query(terms, "sku_table", ["diameter"])
 
     assert query == "SELECT * FROM sku_table WHERE (diameter) = (?);"
     assert parameters == (100.0,)
@@ -48,7 +51,9 @@ def test_construct_fuzzy_search_query_pairs_each_value_with_the_threshold(db):
         "diameter": 100.0,
         "area": 250.0,
     }
-    query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", 20)
+    query, parameters = db._construct_fuzzy_search_query(
+        terms, "sku_table", 20, ["diameter", "area"]
+    )
 
     assert "ABS(diameter - ?) <= ? AND ABS(area - ?) <= ?" in query
     assert parameters == (100.0, 20, 250.0, 20)

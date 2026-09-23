@@ -4,43 +4,104 @@ from dependencies import loadConfig
 from dependencies.sqlite_database_actions import SqliteDatabaseActions
 
 import time
-import argparse
 from logging import info
 from json import loads, dumps
 from threading import Event
-from queue import Queue
+from queue import Empty, Queue
 from mqtt_client import MQTTClient, MQTTConfig
+from sys import getsizeof
+#
+MQTT_BROKERS = loadConfig.return_config_value("broker_details")
+TOPICS = loadConfig.return_config_value("topics")
+DATABASE_DETAILS = loadConfig.return_config_value("database")
+#: Names this service in anything it publishes. A module-level default rather
+#: than only being set inside main(): `global service_id` at module scope does
+#: nothing, so the name main() assigned was a LOCAL and invisible to anything
+#: out here -- which made the error reporter raise NameError at the exact
+#: moment it was needed. Replaced from config at startup.
+service_id = "database-service"
 
-MQTT_BROKERS = None
-TOPICS = None
-DATABASE_DETAILS = None
+#: How long a blocking wait allows a frame to arrive.
+#:
+#: Was 10s, against a colour camera whose own `capture_timeout` is 50s and
+#: which measures ~5.3s per frame on a 1500-MTU link. Those two numbers
+#: disagreed by 5x: the camera was permitted to still be working long after
+#: the consumer had given up, so a slow-but-successful capture was recorded as
+#: a failure. 30s sits above the observed capture time and still below the
+#: camera's own limit, so a genuinely stuck camera is still bounded.
+TRIGGER_TIMEOUT_S = 15
 
-def _wait_for_data(message:dict, queues:dict):
-    '''Waits for data to be received from a dictionary of queue items, each queue item is then added to a dictionary this is a blocking function
+
+def report_status(client, severity: str, event: str, message: str, **extra) -> None:
+    """Publish the outcome of a write, good or bad, for the HMI to act on.
+
+    BOTH outcomes are published, not just failures. The HMI greys its buttons
+    while a capture is in flight, so it needs to hear that a plate saved just
+    as much as that one did not -- a success that says nothing leaves the
+    operator looking at a disabled screen wondering whether to wait.
+
+    And a plate that did not save has to reach whoever is standing at the
+    line. Until now the only sign was a traceback in a console window behind
+    the HMI, and the cell stopping -- which tells an operator that something
+    is wrong but not what, and takes every other service down to say it.
+
+    Logs as well as publishes: the log is the record afterwards, the topic is
+    what somebody sees now. Neither replaces the other.
+    """
+    payload = {
+        "service": service_id,
+        "severity": severity,
+        "event": event,
+        "message": message,
+        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        **extra,
+    }
+    info(f"{severity.title()}: {message}")
+    print(f"{severity.title()}: {message}")
+
+    topic = next(
+        (t.get("topic") for t in TOPICS if t.get("name") == "status_output"),
+        None,
+    )
+    if not topic:
+        # Not configured. The log line above still happens, so a deployment
+        # that has not added the topic behaves exactly as it did before rather
+        # than failing in the reporting path -- the worst place to fail.
+        return
+    try:
+        client.publish(topic, dumps(payload))
+    except Exception as exc:
+        info(f"Error: could not publish the status report: {exc}")
+
+
+def report_error(client, event: str, message: str, **extra) -> None:
+    """Shorthand for the failure case."""
+    report_status(client, "error", event, message, **extra)
+
+
+def check_for_triggers(trigger:dict, is_blocking:bool=False, timeout:float = TRIGGER_TIMEOUT_S):
+    '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
     Args:
-        message: a dictionary of data headings and data, this can be left unformatted if this is the first call
-        queues: a dictionary of Queues to retreive data from
+        triggers: a dictionary of topics
+        is_blocking: a boolean value that controls the blocking functionality
+        timout: a float that determines the timout in s
     Returns:
-        data_json: a dictionary of data items with new information appended into them'''
-    if message is None: raise ValueError("Error: Message cannot be empty")
-    data_json = message
-    queue_item = dict()
-    for queue in queues:
-        try:
-            if not queue["is_subscribe"] or queue["is_trigger"]: continue
-        except:
-            continue
-        try:
-            queue_item =queue["queue"].get(timeout=1)
-            queue_item = loads(queue_item)
-        except Exception as e:
-            queue_item["image"] = None
-            info(f"Error: unable to get item from queue {e}")
-            print(f"Error: unable to get item from queue {e}")
+        message: the message received from the trigger as dictionary'''
 
-        data_json[f"{queue['name']}"] = queue_item["image"]
+    if not trigger:
+        raise ValueError("Error : trigger cannot be empty")
+    message = {"image": None}
 
-    return data_json
+    if is_blocking:
+        message = loads(trigger["queue"].get(timeout=timeout))
+        return message
+    
+    try:
+        message = loads(trigger["queue"].get_nowait())
+    except Exception as e:
+        if e != KeyError: info(f"error occured when checking for trigger {e}")
+
+    return message
 
 def _check_for_triggers(triggers:dict):
     '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
@@ -64,7 +125,46 @@ def _check_for_triggers(triggers:dict):
 
     return message
 
-def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseActions, threshold:float=0):
+#: How many candidates the HMI is offered. The prediction panel has four
+#: slots; sending more would be data nobody can act on, and each one carries a
+#: colour image.
+MATCH_LIMIT = 4
+
+
+def _similarity(target: dict, candidate: dict, fields) -> float:
+    """How far a candidate is from the measured plate. Lower is closer.
+
+    RELATIVE difference per field, averaged -- not raw distance. The fields are
+    on wildly different scales (depth ~200, radius ~900, perimeter ~12000), so
+    a raw distance is really a perimeter ranking with two fields along for the
+    ride: being 100 out on perimeter is under 1%, while 100 out on depth is
+    half the value.
+
+    Each field contributes its own fractional error instead, so "5% out on
+    everything" ranks the same whichever field it is, which is what a person
+    means by similar.
+    """
+    scores = []
+    for field in fields:
+        try:
+            want = float(target.get(field))
+            got = float(candidate.get(field))
+        except (TypeError, ValueError):
+            continue
+        scale = max(abs(want), 1.0)
+        scores.append(abs(want - got) / scale)
+    if not scores:
+        return float("inf")
+    return sum(scores) / len(scores)
+
+
+def _fuzzy_search_database(
+        client:MQTTClient, 
+        message:dict, 
+        db:SqliteDatabaseActions,
+        headers,
+        threshold:float=0
+    ):
     '''performs a fuzzy search on the current database and publishes the results to a given MQTT broker
     Args:
         client: an MQTT client object
@@ -75,29 +175,78 @@ def _fuzzy_search_database(client:MQTTClient, message:dict, db:SqliteDatabaseAct
     if message is None: raise ValueError("Error: message cannot be empty")
     if db is None: raise ValueError("Error: no database object detected")
 
-    search_results = db[message["database_name"]].search(message["destination"], message, threshold)
+    result_packet = dict()
+    response = dict()
+
+    database_name = message.get("database_name")
+    if database_name == None: raise ValueError(f"Error : database name cannot be None")
+    table_name = message.get("database_table")
+    if table_name == None: raise ValueError(f"Error : table name cannot be None")
+
+    # The fields the search actually compares on, so ranking uses the same
+    # ones rather than a second list that can drift from it.
+    headers_for_ranking = list(headers)
+    search_results = db[database_name].search(table_name, message,headers, threshold)
     output_topic = next(
         topic["topic"]
         for topic in TOPICS
-        if not topic["is_subscribe"]
+        if topic.get("name") == "database_output"
     )
-    json_results = dumps(search_results)
-    client.publish(output_topic, json_results)
-    print(search_results)
+    
+    response["matches_found"]=len(search_results)
+    client.publish(f"{output_topic}", dumps(response))
+    
+    if len(search_results) == 0:return
 
-def main(config_path: str | None = None):
-    global MQTT_BROKERS, TOPICS, DATABASE_DETAILS
-    loadConfig.set_config_path(config_path)
-    MQTT_BROKERS = loadConfig.return_config_value("mqtt")
-    TOPICS = loadConfig.return_config_value("topics")
-    DATABASE_DETAILS = loadConfig.return_config_value("database")
+    # Ranked, then capped. The query is a box filter -- "within +/- threshold
+    # on every field" -- with no ORDER BY and no LIMIT, so the rows arrive in
+    # whatever order sqlite yields them. Presenting those as "closest first"
+    # would be inventing a meaning the data does not carry.
+    ranked = sorted(
+        search_results.items(),
+        key=lambda item: _similarity(message, item[1], headers_for_ranking),
+    )[:MATCH_LIMIT]
 
+    packet_list = []
+    # Slots are numbered from 1, not 0: the number reaches an operator at the
+    # panel, and the subtopic has to agree with what the HMI subscribes to.
+    for position, (candidate, candidate_details) in enumerate(ranked, start=1):
+        packet = dict()
+        packet["topic"] = f"{output_topic}/{position}"
+        packet["payload"] = {
+            "packet_number": position,
+            # Where it came in the ranking, so the HMI does not have to
+            # re-derive an order from packets that may arrive out of sequence.
+            "rank": position,
+            "score": round(
+                _similarity(message, candidate_details, headers_for_ranking), 4),
+            "sku":candidate_details.get("sku", 0000),
+            "id":candidate_details.get("id",0000),
+            "depth": candidate_details.get("depth"),
+            "perimeter": candidate_details.get("perimeter"),
+            "radius": candidate_details.get("radius"),
+            "colour_data": candidate_details.get("colour_data"),
+        }
+        packet_list.append(packet)
+        print(f"Info : database-service Packet size = {getsizeof(candidate)*0.00000095367432} MB")
+                
+
+    client.publish_many(packet_list)
+
+def main():
+    config = loadConfig.get_config()
+    global service_id
+    service_id = config.get("service_id", "database_1")
+    print(f"INFO : {service_id} starting \n\r")
     config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
     for database in DATABASE_DETAILS:
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
-        table_name = database["tables"][0]
+        table_name = database["tables"][0]["database_table"]
+        headers = database["tables"][0]["columns"]
+        search_headers = database["tables"][0]["searchable_columns"]
+        print(headers)
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
@@ -124,45 +273,128 @@ def main(config_path: str | None = None):
         while True:
             time.sleep(0.1)
             message = _check_for_triggers(TOPICS)
-            if message["command"] == "search_phrase":
+            if message.get("database_instruction") == "search_database":
+                # Checked BEFORE the blocking waits below, because those waits
+                # CONSUME the camera frames. Validating afterwards -- as this
+                # did -- meant a search request with no database_name drained
+                # the colour and depth queues and then failed anyway, and the
+                # write_database that followed found nothing and abandoned the
+                # row. The frames are published once per capture: whichever
+                # branch takes them first is the only one that gets them, so a
+                # request that cannot succeed must not take them at all.
+                if not message.get("database_name"):
+                    # The whole message is logged because nothing configured on
+                    # this machine sends this: both HMI buttons carry
+                    # database_name, no retained message exists, and only the
+                    # instruction topic is a trigger. So the sender is unknown,
+                    # and the payload is the only thing that will identify it.
+                    info(f"Error: {service_id} search ignored; no database_name. "
+                         f"Message was: {message}")
+                    print(f"Error: {service_id} search ignored; no database_name. "
+                          f"Message was: {message}")
+                    continue
                 try:
-                    _fuzzy_search_database(client, message, db, db["threshold"])
+                    colour_image = next((t for t in TOPICS if t.get("name") == "colour_data"), None)
+                    depth_image = next((t for t in TOPICS if t.get("name") == "depth_data"), None)
+                    depth_data = next((t for t in TOPICS if t.get("name") == "request_command"), None)
+
+                    colour_image_out = check_for_triggers(colour_image, True)
+                    depth_image_out = check_for_triggers(depth_image, True)
+                    depth_data_out = check_for_triggers(depth_data, True)
+                    search_data = {
+                        **message,
+                        **colour_image_out, 
+                        **depth_image_out, 
+                        **depth_data_out
+                    }
+
+                    _fuzzy_search_database(
+                        client, 
+                        search_data, 
+                        db, 
+                        search_headers,
+                        db["threshold"]
+                    )
 
                 except Exception as e:
-                    info(f"Error: fuzzy search fialed: {e}")
-                    print(f"Error: fuzzy search fialed: {e}")
-            elif message["command"] == "add_phrase":
-                new_dictionary_data = _wait_for_data(message, TOPICS)
+                    info(f"Error: {service_id} fuzzy search failed: {e}")
+                    print(f"Error: {service_id} fuzzy search failed: {e}")
+
+            elif message.get("database_instruction") == "write_database":
+                write_data = message
+                print(f"Info : write received, origional message = {write_data}")
+                colour_image = next((t for t in TOPICS if t.get("name") == "colour_data"), None)
+                depth_image = next((t for t in TOPICS if t.get("name") == "depth_data"), None)
+                depth_data = next((t for t in TOPICS if t.get("name") == "request_command"), None)
+
+                # A frame that did not arrive in time is a LOST ROW, not a
+                # reason to stop the line. This used to be three bare blocking
+                # waits: queue.Empty propagated out of main() and the process
+                # exited 1, which took every other service down with it -- a
+                # slow colour capture stopping the whole cell.
+                #
+                # The search branch above has always caught this. The write
+                # branch did not, so the identical timeout was survivable on
+                # one path and fatal on the other. It is caught here for the
+                # same reason, and names which frame was missing so the cause
+                # is in the log rather than inferred from a traceback.
+                # Names the frame currently being waited on, so the log says
+                # WHICH one was late. Set before each wait rather than
+                # inferred afterwards: these locals survive into the next loop
+                # iteration, so anything derived from their existence would
+                # report the previous capture's state.
+                pending = "colour_data"
                 try:
-                    db[message["database_name"]].add_sku(message["destination"], new_dictionary_data)
+                    colour_image_out = check_for_triggers(colour_image, True)
+                    colour_image_out["colour_data"] = colour_image_out.pop("image")
+
+                    pending = "depth_data"
+                    depth_image_out = check_for_triggers(depth_image, True)
+                    depth_image_out["depth_data"] = depth_image_out.pop("image")
+
+                    pending = "request_command"
+                    depth_data_out = check_for_triggers(depth_data, True)
+                except Empty:
+                    report_error(
+                        client, "write_timeout",
+                        f"Plate not saved: no {pending} arrived within "
+                        f"{TRIGGER_TIMEOUT_S}s",
+                        missing=pending, timeout_s=TRIGGER_TIMEOUT_S)
+                    continue
                 except Exception as e:
-                    info(f"Error transmitting data to database {e}")
-                    print(f"Error transmitting data to database {e}")
+                    report_error(client, "write_failed", f"Plate not saved: {e}")
+                    continue
+
+                write_data = {
+                    **write_data,
+                    **colour_image_out, 
+                    **depth_image_out, 
+                    **depth_data_out
+                }
+                # The SKU the operator typed, when the request carried one.
+                # "TBD" remains the fallback so a bare write_database -- the
+                # old button, or anything else on the bus -- behaves exactly
+                # as it did. A part named at capture time does not have to be
+                # hunted down and renamed afterwards.
+                write_data["sku"] = str(message.get("sku") or "").strip() or "TBD"
+                try:
+                    db[write_data["database_name"]].add_sku(
+                        write_data["database_table"], 
+                        write_data,
+                        headers
+                    )
+
+                    print(f"Info : data added to database {write_data.get('database_name')}, {write_data.get('destination')}")
+                    report_status(client, "info", "write_ok", "Plate saved",
+                                  table=write_data.get("database_table"))
+                except Exception as e:
+                    report_error(client, "write_failed",
+                                 f"Plate not saved: database write failed: {e}")
             else:
                 continue
 
     except KeyboardInterrupt:
-        print("Shutting down subscribe listener and exiting.")
+        print(f"Info : {service_id} Shutting down subscribe listener and exiting.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Detection analysis service")
-    parser.add_argument(
-        "--config",
-        type=str,
-        default=None,
-        help="Path to YAML config file",
-    )
-    parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Use fallback config (app/configs/config.yaml)",
-    )
-    args = parser.parse_args()
-
-    if args.test and args.config:
-        parser.error("cannot use both --test and --config")
-    if not args.test and not args.config:
-        parser.error("one of --config or --test is required")
-
-    config_path = None if args.test else args.config
-    raise SystemExit(main(config_path=config_path))
+    main()
