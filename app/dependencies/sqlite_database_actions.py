@@ -118,6 +118,52 @@ class SqliteDatabaseActions(DatabaseActions):
 
         return query, parameters
 
+    def _construct_update_query(
+            self,
+            values:dict,
+            database_table:str,
+            row_id,
+            editable:list
+        ):
+        '''Builds an UPDATE touching one row and only the editable columns.
+
+        Column names cannot be bound as parameters -- they are interpolated
+        into the statement -- so each one is checked against the identifier
+        pattern AND against the list config permits, before it reaches the
+        string. The values themselves are always bound.
+        Args:
+            values: a dictionary of column name to new value
+            database_table: the table holding the row
+            row_id: the id of the row to change
+            editable: the columns config permits changing
+        Returns:
+            query: a string formatted correctly as an sql statement
+            parameters: a tuple of values to bind, row id last
+        '''
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
+            raise ValueError("Invalid database table name")
+        if not values:
+            raise ValueError("No data fields supplied")
+        if str(row_id or "").strip() == "":
+            raise ValueError("A row id is required")
+        if not editable:
+            raise ValueError("No editable columns configured")
+
+        fields = list(values)
+        for field in fields:
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field):
+                raise ValueError("Invalid database column name")
+            if field not in editable:
+                raise ValueError(f"Column '{field}' is not editable")
+
+        assignments = ", ".join(f"{field} = ?" for field in fields)
+        # `id` rather than the table's literal `Id`: sqlite matches column
+        # names without regard to case, and every table here names its key
+        # this way, so the statement reads the same as the rest of the service.
+        query = f"UPDATE {database_table} SET {assignments} WHERE id = ?;"
+        parameters = tuple(values[field] for field in fields) + (row_id,)
+        return query, parameters
+
     def create_table(self, table_name:str, database_columns:dict):
         '''Creates a table within a given database - non functioning, add chore to fix this
         Args:

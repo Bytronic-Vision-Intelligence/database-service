@@ -246,6 +246,10 @@ def main():
         table_name = database["tables"][0]["database_table"]
         headers = database["tables"][0]["columns"]
         search_headers = database["tables"][0]["searchable_columns"]
+        # What an admin is allowed to rewrite on a stored row. Absent means
+        # none, so a deployment that has not opted in cannot be edited at all
+        # rather than defaulting to something editable.
+        editable_headers = database["tables"][0].get("editable_columns") or []
         print(headers)
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
@@ -390,6 +394,72 @@ def main():
                 except Exception as e:
                     report_error(client, "write_failed",
                                  f"Plate not saved: database write failed: {e}")
+            elif message.get("database_instruction") == "update_database":
+                # Takes nothing from the camera queues, and must not: an edit
+                # corrects a row that already exists, so there is no capture to
+                # wait for. A blocking wait here would consume the frames of a
+                # capture running at the same time -- which is exactly how the
+                # search branch used to strand writes.
+                database_name = message.get("database_name")
+                if not database_name or database_name not in db:
+                    report_error(
+                        client, "update_failed",
+                        "Edit not saved: that database is not configured",
+                        database_name=database_name)
+                    continue
+
+                row_id = str(message.get("id") or "").strip()
+                if not row_id:
+                    report_error(client, "update_failed",
+                                 "Edit not saved: no part was identified")
+                    continue
+
+                # Only the configured columns are read out of the request. A
+                # message naming anything else does not fail -- the extra key
+                # is simply not a column anyone may change, and the request
+                # carries routing keys (database_name, instruction) too.
+                values = {
+                    column: str(message[column]).strip()
+                    for column in editable_headers
+                    if message.get(column) is not None
+                }
+                if not values:
+                    report_error(client, "update_failed",
+                                 "Edit not saved: nothing was changed")
+                    continue
+                if any(value == "" for value in values.values()):
+                    # A part with no name cannot be found again, and the search
+                    # slots would show it as blank rather than as anything an
+                    # operator could recognise.
+                    report_error(client, "update_failed",
+                                 "Edit not saved: a part needs a name")
+                    continue
+
+                try:
+                    changed = db[database_name].update_sku(
+                        message.get("database_table") or table_name,
+                        row_id,
+                        values,
+                        editable_headers,
+                    )
+                except Exception as e:
+                    report_error(client, "update_failed",
+                                 f"Edit not saved: {e}", id=row_id)
+                    continue
+
+                if not changed:
+                    report_error(
+                        client, "update_missing",
+                        "Edit not saved: that part is no longer in the database",
+                        id=row_id)
+                    continue
+
+                report_status(
+                    client, "info", "update_ok",
+                    f"Saved as {values['sku']}" if "sku" in values
+                    else "Part details saved",
+                    id=row_id, changed=sorted(values))
+
             else:
                 continue
 

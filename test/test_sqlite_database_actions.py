@@ -67,3 +67,105 @@ def test_map_from_database_keys_rows_by_index_then_column(db):
         0: {"id": 1, "diameter": 100.0, "area": 250.0},
         1: {"id": 2, "diameter": 105.0, "area": 260.0},
     }
+
+
+@pytest.fixture
+def plates():
+    '''A table shaped like churchill's test_table: measurements, images, name.'''
+    actions = SqliteDatabaseActions(":memory:")
+    actions.connection.execute(
+        "CREATE TABLE test_table ("
+        "Id TEXT PRIMARY KEY, depth_data TEXT, colour_data TEXT, "
+        "depth REAL, perimeter REAL, radius REAL, sku TEXT)"
+    )
+    actions.connection.executemany(
+        "INSERT INTO test_table VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("uuid-1", "d1", "c1", 31.0, 17724.0, 55.0, "TBD"),
+            ("uuid-2", "d2", "c2", 32.0, 17730.0, 56.0, "TBD"),
+        ],
+    )
+    actions.connection.commit()
+    return actions
+
+
+EDITABLE = ["sku"]
+
+
+def test_construct_update_query_sets_only_the_named_column(plates):
+    query, parameters = plates._construct_update_query(
+        {"sku": "BRACKET-12"}, "test_table", "uuid-1", EDITABLE
+    )
+
+    assert query == "UPDATE test_table SET sku = ? WHERE id = ?;"
+    # Row id last, so it lines up with the WHERE placeholder rather than the SET.
+    assert parameters == ("BRACKET-12", "uuid-1")
+
+
+def test_update_sku_changes_the_named_row_only(plates):
+    changed = plates.update_sku("test_table", "uuid-1", {"sku": "BRACKET-12"}, EDITABLE)
+
+    assert changed == 1
+    rows = dict(
+        plates.connection.execute("SELECT Id, sku FROM test_table").fetchall()
+    )
+    assert rows == {"uuid-1": "BRACKET-12", "uuid-2": "TBD"}
+
+
+def test_update_sku_leaves_the_measurements_alone(plates):
+    """A rename must not disturb what the capture measured."""
+    before = plates.connection.execute(
+        "SELECT depth, perimeter, radius, colour_data FROM test_table WHERE Id = ?",
+        ("uuid-1",),
+    ).fetchone()
+
+    plates.update_sku("test_table", "uuid-1", {"sku": "BRACKET-12"}, EDITABLE)
+
+    after = plates.connection.execute(
+        "SELECT depth, perimeter, radius, colour_data FROM test_table WHERE Id = ?",
+        ("uuid-1",),
+    ).fetchone()
+    assert before == after
+
+
+def test_update_sku_reports_zero_when_no_row_carries_the_id(plates):
+    """Distinguishable from success, so the operator is told rather than not."""
+    assert plates.update_sku("test_table", "nope", {"sku": "X"}, EDITABLE) == 0
+
+
+def test_update_refuses_a_column_config_did_not_permit(plates):
+    # Measurements describe a capture that happened; typing over them would be
+    # a fabrication, so the whitelist -- not the request -- decides.
+    with pytest.raises(ValueError, match="not editable"):
+        plates._construct_update_query(
+            {"radius": 9.0}, "test_table", "uuid-1", EDITABLE
+        )
+
+
+def test_update_refuses_an_injected_column_name(plates):
+    # Column names are interpolated, not bound, so this is the guard that matters.
+    with pytest.raises(ValueError, match="Invalid database column name"):
+        plates._construct_update_query(
+            {"sku = 'x' --": "y"}, "test_table", "uuid-1", EDITABLE
+        )
+
+
+def test_update_refuses_an_injected_table_name(plates):
+    with pytest.raises(ValueError, match="Invalid database table name"):
+        plates._construct_update_query(
+            {"sku": "y"}, "test_table; DROP TABLE test_table", "uuid-1", EDITABLE
+        )
+
+
+@pytest.mark.parametrize(
+    "values, row_id, editable, expected",
+    [
+        ({}, "uuid-1", EDITABLE, "No data fields supplied"),
+        ({"sku": "y"}, "", EDITABLE, "A row id is required"),
+        ({"sku": "y"}, None, EDITABLE, "A row id is required"),
+        ({"sku": "y"}, "uuid-1", [], "No editable columns configured"),
+    ],
+)
+def test_update_refuses_incomplete_requests(plates, values, row_id, editable, expected):
+    with pytest.raises(ValueError, match=expected):
+        plates._construct_update_query(values, "test_table", row_id, editable)

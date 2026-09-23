@@ -62,6 +62,54 @@ class DatabaseActions(ABC):
             print("Info : database actions - data mapped")
             self.execute_query(f"INSERT INTO {query}", parameters)
     
+    def _execute_write(self, query, parameters=None):
+        '''Executes a write and returns how many rows it changed.
+
+        `execute_query` hands back `cursor.fetchall()`, which an UPDATE leaves
+        empty -- so a statement that matched no row looked exactly like one
+        that matched a row. An edit has to tell those apart, because "no row
+        carries that id" is a message for the operator, not a silent success.
+        Args:
+            query: a string containing a valid sql statement
+            parameters: the values to bind to it
+        Returns:
+            the number of rows the statement changed
+        '''
+        if query is None or query == "":
+            raise ValueError("query cannot be empty")
+
+        cursor = self.connection.cursor()
+        print(f"Info : Executing write: {query}")
+        try:
+            cursor.execute(query, parameters)
+            self.connection.commit()
+            return cursor.rowcount
+        except Exception as err:
+            raise ConnectionError(f"Error: _execute_write '{err}'")
+        finally:
+            cursor.close()
+
+    def update_sku(self, database_table, row_id, values:dict, editable:list):
+        '''Changes named columns on one row that already exists.
+
+        The first path in this service that rewrites a stored row rather than
+        appending one, so what may be changed is decided by config and passed
+        in -- a request cannot widen it. Measurements and images are not in
+        that list: they describe a capture that happened, and a typed
+        correction to them would be a fabrication.
+        Args:
+            database_table: the table holding the row
+            row_id: the id of the row to change
+            values: a dictionary of column name to new value
+            editable: the columns config permits changing
+        Returns:
+            the number of rows changed; 0 means no row carries that id
+        '''
+        query, parameters = self._construct_update_query(
+            values, database_table, row_id, editable
+        )
+        return self._execute_write(query, parameters)
+
     def search(
             self, 
             database_table:str, 
