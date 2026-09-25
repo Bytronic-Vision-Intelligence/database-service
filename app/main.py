@@ -50,6 +50,46 @@ def _setup_database(service: dict):
     db["table_name"] = table_name
     return db, search_headers, headers
 
+def build_sku_model_payload(row: dict, models_directory: str | None) -> dict:
+    """Shape a sku_table row into the message inference uses to load weights."""
+    payload = {
+        "sku_id": row.get("sku_id"),
+        "sku_name": row.get("sku_name"),
+        "model_name": row.get("model_name"),
+    }
+    if row.get("inference_service") not in (None, ""):
+        payload["inference_service"] = row.get("inference_service")
+    model_name = str(row.get("model_name") or "").strip()
+    if model_name and models_directory:
+        filename = model_name if model_name.endswith(".pt") else f"{model_name}.pt"
+        payload["model_path"] = str((Path(models_directory) / filename).resolve())
+    return payload
+
+
+def _publish_sku_model(client, sku_id: str, db: dict, topics: list, models_directory):
+    """Look up one SKU and publish its model on `database_output`.
+
+    The message is retained so an inference service that is still loading its
+    startup weights still receives the selection.
+    """
+    database_name = db["database_name"]
+    table_name = db["table_name"]
+    results = db[database_name].search(table_name, {"sku_id": sku_id}, ["sku_id"], 0)
+    rows = list(results.values()) if isinstance(results, dict) else []
+    if not rows or not isinstance(rows[0], dict):
+        info("No sku_table row for sku_id %s", sku_id)
+        return
+
+    payload = build_sku_model_payload(rows[0], models_directory)
+    output_topic = next(
+        topic["topic"]
+        for topic in topics
+        if topic.get("name") == "database_output"
+    )
+    client.publish(output_topic, payload, retain=True)
+    info("Published model for sku %s: %s", sku_id, payload.get("model_path") or payload.get("model_name"))
+
+
 def _fuzzy_search_database(
         client:MQTTClient,
         message:dict,
@@ -125,6 +165,9 @@ def main(argv=None):
         while True:
             time.sleep(0.1)
             message = check_trigger(ui_request)
+            if not message:
+                continue
+            sku_id = message.get("sku_id") or message.get("sku")
             if message.get("database_instruction") == "search_database":
                 try:
                     colour_image_out = check_trigger(colour_image, True)
@@ -180,6 +223,17 @@ def main(argv=None):
                     )
                 except Exception as e:
                     info("Error transmitting data to database %s", e)
+            elif sku_id:
+                try:
+                    _publish_sku_model(
+                        client,
+                        str(sku_id).strip(),
+                        db,
+                        topics,
+                        service.get("models_directory"),
+                    )
+                except Exception as e:
+                    info("Error: %s sku model lookup failed: %s", service_id, e)
             else:
                 continue
 
