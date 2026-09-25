@@ -31,12 +31,12 @@ def test_construct_search_query_drops_control_keys_and_nulls(db):
         "command": "search_phrase",
         "database_name": "churchill_database",
         "destination": "sku_table",
-        "diameter": 100.0,
-        "area": None,
+        "depth": 100.0,
     }
-    query, parameters = db._construct_search_query(terms, "sku_table")
+    headers = ["depth"]
+    query, parameters = db._construct_search_query(terms, "sku_table", headers)
 
-    assert query == "SELECT * FROM sku_table WHERE (diameter) = (?);"
+    assert query == "SELECT * FROM sku_table WHERE (depth) = (?);"
     assert parameters == (100.0,)
 
 
@@ -45,12 +45,13 @@ def test_construct_fuzzy_search_query_pairs_each_value_with_the_threshold(db):
         "command": "search_phrase",
         "database_name": "churchill_database",
         "destination": "sku_table",
-        "diameter": 100.0,
-        "area": 250.0,
+        "depth": 100.0,
+        "radius": 250
     }
-    query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", 20)
+    headers = ["depth", "radius"]
+    query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", 20,headers)
 
-    assert "ABS(diameter - ?) <= ? AND ABS(area - ?) <= ?" in query
+    assert "ABS(depth - ?) <= ? AND ABS(radius - ?) <= ?" in query
     assert parameters == (100.0, 20, 250.0, 20)
 
 
