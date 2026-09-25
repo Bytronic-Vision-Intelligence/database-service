@@ -1,20 +1,15 @@
-from dependencies.mqtt_functions import *
-
+from dependencies.mqtt.mqtt_functions import *
 from dependencies import loadConfig
-from dependencies.sqlite_database_actions import SqliteDatabaseActions
+from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
 
 import time
 from logging import info
-from json import loads, dumps
-from threading import Event
-from queue import Queue
+from json import dumps
 from mqtt_client import MQTTClient, MQTTConfig
-from sys import getsizeof
 #
 MQTT_BROKERS = loadConfig.return_config_value("broker_details")
 TOPICS = loadConfig.return_config_value("topics")
 DATABASE_DETAILS = loadConfig.return_config_value("database")
-global service_id
 
 def _setup_database(database:dict):
     '''used to setup a database'''
@@ -29,7 +24,7 @@ def _setup_database(database:dict):
         raise ConnectionError(f"Error : Could not connect to table {table_name}")
     db[database["database_name"]].set_database_map(table_name)
     db["threshold"]=database["search_threshold"]
-    return db, search_headers
+    return db, headers, search_headers
 
 def _fuzzy_search_database(
         client:MQTTClient, 
@@ -71,6 +66,16 @@ def _fuzzy_search_database(
     packet_list = packetize_results(search_results)
     client.publish_many(packet_list)
 
+def get_topic(topic_dict:dict, topic_name:str):
+    '''returns the topic associated with the key value
+    Args:
+        topic_dict: a dictionary of topics, one value needs to be "name"
+        topic_name: the name to search within the topic list
+    Returns:
+        the topic object accosiated with the name
+    '''
+    return next((t for t in topic_dict if t.get("name") == topic_name), None)
+
 def main():
     config = loadConfig.get_config()
     broker_details = config.get('broker_details')
@@ -80,10 +85,7 @@ def main():
 
     mqtt_config = MQTTConfig(host=MQTT_BROKERS["mqtt_ip"], port=MQTT_BROKERS["mqtt_port"])
 
-    db_list = []
-    for database in DATABASE_DETAILS:
-        db, search_headers = _setup_database(database)
-        db_list.append([db, search_headers])
+    db, headers, search_headers = _setup_database(DATABASE_DETAILS)
 
     client = MQTTClient(mqtt_config)
     client.connect()
@@ -92,10 +94,10 @@ def main():
 
     # these need to be made more generic, at some point a function needs to be made that will handle
     # taking info from the config and creating these
-    colour_image = next((t for t in topics if t.get("name") == "colour_data"), None)
-    depth_image = next((t for t in topics if t.get("name") == "depth_data"), None)
-    depth_data = next((t for t in topics if t.get("name") == "request_command"), None)
-    ui_request = next((t for t in topics if t.get("name") == "hmi_request"), None)
+    colour_image = get_topic(topics,"colour_data")
+    depth_image = get_topic(topics,"depth_data")
+    depth_data = get_topic(topics,"request_command")
+    ui_request = get_topic(topics,"hmi_request")
 
     try:
         while True:
@@ -133,6 +135,7 @@ def main():
 
                 depth_image_out = check_for_triggers(depth_image, True)
                 depth_image_out["depth_data"] = depth_image_out.pop("image")
+
                 depth_data_out = check_for_triggers(depth_data, True)
 
                 write_data = {
@@ -142,9 +145,21 @@ def main():
                     **depth_data_out
                 }
                 write_data["sku"] = "TBD"
+
+                is_duplicate = db[
+                    message.get("database_name")
+                ].check_duplicate(
+                    "sku",write_data["sku"],
+                    message.get("database_table")
+                )
+
+                if is_duplicate: 
+                    print(f"Error : Duplicate sku: {write_data['sku']} found")
+                    continue
+
                 try:
-                    db[write_data["database_name"]].add_sku(
-                        write_data["database_table"], 
+                    db[ message.get("database_name")].add_sku(
+                        message.get("database_table"), 
                         write_data,
                         headers
                     )

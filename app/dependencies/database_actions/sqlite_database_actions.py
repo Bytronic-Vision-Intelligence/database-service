@@ -49,6 +49,19 @@ class SqliteDatabaseActions(DatabaseActions):
         finally:
             cursor.close()
 
+    def _search_single_column(self, header, data, table):
+        '''creates a search queory for a single column
+        Args:
+            header: the header to search as a string
+            data_entry: the data to find in the database
+            table: the table to search
+        Returns:
+            a string query
+        '''
+        query = f"SELECT * FROM {table} WHERE ({header}) = (?);"
+        parameters = data
+        return query, parameters
+    
     def _construct_search_query(
             self, 
             terms:dict, 
