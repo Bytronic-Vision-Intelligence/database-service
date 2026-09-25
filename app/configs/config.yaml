@@ -1,0 +1,41 @@
+# Broker connections  ---------------------------------------
+broker_details:
+  mqtt_ip: localhost
+  mqtt_port: 1883
+
+# Database connections ---------------------------------------
+database:
+    file_location: database\test_database.db
+    database_name: "test_database"
+    search_threshold: 20
+    tables: 
+    - database_table: "test_table"
+      columns: [id, sku, colour_data, depth_data, perimeter, depth, radius]
+      searchable_columns: [perimeter, depth, radius]
+
+# MQTT options ---------------------------------------
+topics:
+- name: "hmi_request"
+  topic: "churchill/ui/ui_1/instruction"
+  is_subscribe: True
+  is_trigger: True
+
+- name: "request_command"
+  topic: "churchill/depth_analysis/search/sku_data"
+  is_subscribe: True
+  is_trigger: True
+
+- name: "database_output"
+  topic: "churchill/database/search/matching_sku"
+  is_subscribe: False
+  is_trigger: False
+
+- name: "depth_data"
+  topic: "churchill/camera/depth_1/image"
+  is_subscribe: True
+  is_trigger: False
+
+- name: "colour_data"
+  topic: "churchill/camera/depth_1/image"
+  is_subscribe: True
+  is_trigger: False
