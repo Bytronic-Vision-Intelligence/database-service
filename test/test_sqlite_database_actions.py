@@ -1,6 +1,6 @@
 import pytest
 
-from app.dependencies.sqlite_database_actions import SqliteDatabaseActions
+from app.dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
 
 
 @pytest.fixture

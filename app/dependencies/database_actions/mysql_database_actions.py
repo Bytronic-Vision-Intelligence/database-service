@@ -1,6 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
-from database_actions import DatabaseActions
+from .database_actions import DatabaseActions
 
 class MysqlDatabaseActions(DatabaseActions):
     def __init__(

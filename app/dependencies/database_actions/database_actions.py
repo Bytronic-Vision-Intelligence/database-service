@@ -41,6 +41,7 @@ class DatabaseActions(ABC):
         cursor = self.connection.cursor()
         print(f"Info : Executing queory: {query}")
         try:
+            if type(parameters) == str: parameters = (parameters,)
             cursor.execute(query, parameters)
             self.connection.commit()
             print("Query successful")
@@ -88,6 +89,23 @@ class DatabaseActions(ABC):
             print(f"Error: unable to map data from database: {e}")
             info(f"Error: unable to map data from database: {e}")
         return results
+
+    def check_duplicate(self, header:str, data_entry:any, table:str):
+        '''searches the database using a given header and data entry to 
+        determine if it already exists in the database
+        Args:
+            header: the header to search as a string
+            data_entry: the data to find in the database
+            table: the table to search
+        Returns:
+            a boolean result
+        '''
+        search_term, parameters = self._search_single_column(header,data_entry, table)
+        query = f"{search_term}"
+        results = self.execute_query(query, parameters)
+        if len(results)>0:return True
+        return False
+
 
     def _generate_uid(self):
             '''returns a unique identifier'''
