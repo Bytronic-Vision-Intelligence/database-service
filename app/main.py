@@ -103,7 +103,10 @@ def main():
         while True:
             time.sleep(0.1)
             message = check_for_triggers(ui_request)
-            if message.get("database_instruction") == "search_database":
+            instruction = message.get("database_instruction")
+            if instruction != None: print(f"message = {instruction}")
+
+            if instruction == "search_database":
                 try:
                     colour_image_out = check_for_triggers(colour_image, True)
                     depth_image_out = check_for_triggers(depth_image, True)
@@ -127,8 +130,19 @@ def main():
                     info(f"Error: {service_id} fuzzy search failed: {e}")
                     print(f"Error: {service_id} fuzzy search failed: {e}")
 
-            elif message.get("database_instruction") == "write_database":
+            elif instruction == "write_database":
                 write_data = message
+
+                is_duplicate = db[
+                    message.get("database_name")
+                ].check_exists(
+                    "sku",write_data["sku"],
+                    message.get("database_table")
+                )
+
+                if is_duplicate: 
+                    print(f"Error : Duplicate sku: {write_data['sku']} found")
+                    continue
 
                 colour_image_out = check_for_triggers(colour_image, True)
                 colour_image_out["colour_data"] = colour_image_out.pop("image")
@@ -144,18 +158,6 @@ def main():
                     **depth_image_out, 
                     **depth_data_out
                 }
-                write_data["sku"] = "TBD"
-
-                is_duplicate = db[
-                    message.get("database_name")
-                ].check_duplicate(
-                    "sku",write_data["sku"],
-                    message.get("database_table")
-                )
-
-                if is_duplicate: 
-                    print(f"Error : Duplicate sku: {write_data['sku']} found")
-                    continue
 
                 try:
                     db[ message.get("database_name")].add_sku(
@@ -168,6 +170,31 @@ def main():
                 except Exception as e:
                     info(f"Error transmitting data to database {e}")
                     print(f"Error transmitting data to database {e}")
+
+            elif instruction == "remove_sku":
+                is_found = db[
+                    message.get("database_name")
+                ].check_exists(
+                    "sku",message.get("sku"),
+                    message.get("database_table")
+                )
+
+                if not is_found: 
+                    print(f"Error : sku: {message.get('sku')} not found")
+                    continue
+
+                try:
+                    db[ message.get("database_name")].delete_sku(
+                        message.get("database_table"), 
+                        message.get("sku"),
+                        "sku"
+                    )
+
+                    print(f"Info : data removed from database {write_data.get('database_name')}, {write_data.get('destination')}")
+                except Exception as e:
+                    info(f"Error deleting data in database {e}")
+                    print(f"Error deleting data in database {e}")
+
             else:
                 continue
 
