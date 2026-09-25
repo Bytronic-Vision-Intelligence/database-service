@@ -205,3 +205,13 @@ class SqliteDatabaseActions(DatabaseActions):
                 mapped_result[row_id][column] = value
 
         return mapped_result
+
+    def _map_remove_row(self, table:str, header:str, data:any):
+        '''constructs a query to remove a row from the database
+        Args:
+            table: the table to target as a string
+            header: the header to search for as a string
+            data: the data to match, this must match the columns datatype'''
+        query = f"{table} WHERE ({header}) = (?);"
+        parameters = data
+        return query, parameters
