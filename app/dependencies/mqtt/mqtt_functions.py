@@ -101,7 +101,7 @@ def create_subtopic_listners(
         subtopic = None
     return subtopic_list
 
-def check_for_triggers(trigger:dict, is_blocking:bool=False, timeout:float = 10):
+def check_for_messages(trigger:dict, is_blocking:bool=False, timeout:float = 10):
     '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
     Args:
         triggers: a dictionary of topics

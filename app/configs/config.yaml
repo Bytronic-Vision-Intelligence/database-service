@@ -20,10 +20,10 @@ topics:
   is_subscribe: True
   is_trigger: True
 
-- name: "request_command"
+- name: "analysis_data"
   topic: "churchill/depth_analysis/search/sku_data"
   is_subscribe: True
-  is_trigger: True
+  is_trigger: False
 
 - name: "database_output"
   topic: "churchill/database/search/matching_sku"
@@ -31,11 +31,11 @@ topics:
   is_trigger: False
 
 - name: "depth_data"
-  topic: "churchill/camera/depth_1/image"
+  topic: churchill/camera/camera_1/colour_image
   is_subscribe: True
   is_trigger: False
 
 - name: "colour_data"
-  topic: "churchill/camera/depth_1/image"
+  topic: churchill/camera/camera_1/colour_image
   is_subscribe: True
   is_trigger: False

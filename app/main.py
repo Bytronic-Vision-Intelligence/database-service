@@ -96,21 +96,21 @@ def main():
     # taking info from the config and creating these
     colour_image = get_topic(topics,"colour_data")
     depth_image = get_topic(topics,"depth_data")
-    depth_data = get_topic(topics,"request_command")
+    depth_data = get_topic(topics,"analysis_data")
     ui_request = get_topic(topics,"hmi_request")
 
     try:
         while True:
             time.sleep(0.1)
-            message = check_for_triggers(ui_request)
+            message = check_for_messages(ui_request)
             instruction = message.get("database_instruction")
             if instruction != None: print(f"message = {instruction}")
 
             if instruction == "search_database":
                 try:
-                    colour_image_out = check_for_triggers(colour_image, True)
-                    depth_image_out = check_for_triggers(depth_image, True)
-                    depth_data_out = check_for_triggers(depth_data, True)
+                    colour_image_out = check_for_messages(colour_image, True)
+                    depth_image_out = check_for_messages(depth_image, True)
+                    depth_data_out = check_for_messages(depth_data, True)
                     search_data = {
                         **message,
                         **colour_image_out, 
@@ -144,13 +144,13 @@ def main():
                     print(f"Error : Duplicate sku: {write_data['sku']} found")
                     continue
 
-                colour_image_out = check_for_triggers(colour_image, True)
+                colour_image_out = check_for_messages(colour_image, True)
                 colour_image_out["colour_data"] = colour_image_out.pop("image")
 
-                depth_image_out = check_for_triggers(depth_image, True)
+                depth_image_out = check_for_messages(depth_image, True)
                 depth_image_out["depth_data"] = depth_image_out.pop("image")
 
-                depth_data_out = check_for_triggers(depth_data, True)
+                depth_data_out = check_for_messages(depth_data, True)
 
                 write_data = {
                     **write_data,
