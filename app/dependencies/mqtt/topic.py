@@ -29,6 +29,7 @@ class Topic():
             None
         )
 
+
 def check_for_messages(topic:Topic):
     '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
     Args:

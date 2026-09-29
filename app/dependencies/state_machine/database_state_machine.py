@@ -46,7 +46,6 @@ class DatabaseStateMachine(StateMachine):
             topic_list[f"{topic.get('name')}"] = topic_new
         return topic_list
 
-    
     @staticmethod
     def __create_mqtt_client(config:dict):
         '''creates an mqtt client object from the config'''
