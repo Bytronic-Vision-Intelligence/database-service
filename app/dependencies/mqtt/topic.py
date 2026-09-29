@@ -1,4 +1,3 @@
-from threading import Thread
 from queue import Queue
 from .mqtt_functions import start_subscribe_thread
 from json import loads
