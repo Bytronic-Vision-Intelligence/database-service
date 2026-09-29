@@ -2,6 +2,7 @@ from .base_functions.state import State
 from .search_state import SearchState
 from .write_state import WriteState
 from .remove_state import RemoveState
+from .update_state import UpdateState
 from dependencies.mqtt.mqtt_functions import *
 from dependencies.mqtt.topic import check_for_messages
 
@@ -29,4 +30,6 @@ class IdleState(State):
                 self.my_state_machine, message
             ))
         if instruction == "update_sku":
-            self.my_state_machine.change_state()
+            self.my_state_machine.change_state(UpdateState(
+                self.my_state_machine, message
+            ))
