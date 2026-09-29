@@ -5,6 +5,7 @@ from dependencies.mqtt.mqtt_functions import *
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
 
 class DatabaseStateMachine(StateMachine):
+    '''A state machine to control database functions'''
     def __init__(self, config:dict):
         super().__init__()
         self.service_id = config.get("service_id", "database_1")

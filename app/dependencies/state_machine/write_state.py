@@ -3,7 +3,7 @@ from dependencies.mqtt.topic import check_for_messages
 from logging import info
 
 class WriteState(State):
-    ''''''
+    '''A state to control writing data to a database'''
     def __init__(
             self, 
             state_machine, 
@@ -14,7 +14,10 @@ class WriteState(State):
         self.message = message
 
     def tick(self):
-        ''''''
+        '''checks to see if the SKU is already in the database, if it is exits the process
+        otherwise writes the data from the topics listed in the config to the database
+        using the name of the topics as the header
+        '''
         from .idle_state import IdleState
         db = self.my_state_machine.database
         write_data = self.message

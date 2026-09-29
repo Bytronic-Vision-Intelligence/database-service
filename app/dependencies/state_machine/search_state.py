@@ -5,13 +5,14 @@ from dependencies.mqtt.topic import check_for_messages
 from logging import info
 from json import dumps
 class SearchState(State):
-    ''''''
+    '''A state to control search behaviour for a database'''
     def __init__(self, state_machine, message, state_id = "Search State"):
         super().__init__(state_machine, state_id)
         self.message = message
 
     def tick(self):
-        ''''''
+        '''collects data from a set of blocking subscribers defined by the config (subscribe no trigger)
+        and creates a database search query from the details. restults are published to the appropriate MQTT topics'''
         try:
             search_data = self.message
             for subscriber in self.my_state_machine.blocking_subscribers:

@@ -3,7 +3,7 @@ from .write_state import WriteState
 from logging import info
 
 class RemoveState(State):
-    ''''''
+    '''A state to control removing data from a database by SKU'''
     def __init__(
             self, 
             state_machine, 
@@ -15,11 +15,9 @@ class RemoveState(State):
         self.message = message
         self.is_update = is_update
 
-    def enter(self):
-        return super().enter()
-
     def tick(self):
-        ''''''
+        '''Checks the database to ensure the SKU is present, if not returns to idle state
+        if SKU is in database table, a remove request is then performed on the database'''
         message = self.message
         db = self.my_state_machine.database
 
@@ -51,6 +49,10 @@ class RemoveState(State):
         self.leave_state(self.is_update, self.message)
 
     def leave_state(self, is_update, message):
+        '''returns the process to the idle state and imports the idle
+        state class, this cannot be done with other imports please dont move
+        if the is_update flag is set, will instead move to the write state
+        '''
         from .idle_state import IdleState
         if is_update:
             self.my_state_machine.change_state(
