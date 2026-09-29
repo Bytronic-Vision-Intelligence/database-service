@@ -1,4 +1,6 @@
-from .state_machine import StateMachine
+from .base_functions.state_machine import StateMachine
+from .idle_state import IdleState
+from dependencies.mqtt.topic import Topic
 from dependencies.mqtt.mqtt_functions import *
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
 
@@ -7,12 +9,13 @@ class DatabaseStateMachine(StateMachine):
         super().__init__()
         self.service_id = config.get("service_id", "database_1")
         self.mqtt_client = self.__create_mqtt_client(config)
-        self.topics = create_topic_listners(config)
+        self.topics = self.__create_topic_listners(config)
         self.database, self.headers, self.search_headers = self.__setup_database(config)
         self.ui_request = self.__get_topic(self.topics,"hmi_request")
         self.service_output = self.__get_topic(self.topics, "database_output")
         self.blocking_subscribers = self.__get_blocking_subscribers(self.topics)
-    
+        self.state = IdleState(self)
+
     def publish_message(
             self, 
             payload = any, 
@@ -29,6 +32,21 @@ class DatabaseStateMachine(StateMachine):
             return
         self.mqtt_client.publish(topic, payload)
 
+
+    @staticmethod
+    def __create_topic_listners(config:dict):
+        '''creates a set of listners for the given topics and adds
+        qeueue objects to the dictionary as well as reference to the thread
+        '''
+        broker = config.get('broker_details')
+        topics = config.get("topics")
+        topic_list = {}
+        for topic in topics:
+            topic_new = Topic(broker, topic)
+            topic_list[f"{topic.get('name')}"] = topic_new
+        return topic_list
+
+    
     @staticmethod
     def __create_mqtt_client(config:dict):
         '''creates an mqtt client object from the config'''
@@ -60,7 +78,7 @@ class DatabaseStateMachine(StateMachine):
         return db, headers, search_headers
 
     @staticmethod
-    def __get_topic(topic_dict:dict, topic_name:str):
+    def __get_topic(topic_dict:dict, topic_name:str)-> Topic:
         '''returns the topic associated with the key value
         Args:
             topic_dict: a dictionary of topics, one value needs to be "name"
@@ -68,7 +86,7 @@ class DatabaseStateMachine(StateMachine):
         Returns:
             the topic object accosiated with the name
         '''
-        return next((t for t in topic_dict if t.get("name") == topic_name), None)
+        return topic_dict.get(topic_name)
 
     @staticmethod
     def __get_blocking_subscribers(topics):
@@ -81,6 +99,7 @@ class DatabaseStateMachine(StateMachine):
         '''
         blocking_subscribers = []
         for topic in topics:
+            topic = topics.get(topic)
             if not topic.is_subscribe or topic.is_trigger: continue
             blocking_subscribers.append(topic)
         return blocking_subscribers

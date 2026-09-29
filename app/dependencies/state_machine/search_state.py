@@ -1,23 +1,21 @@
-from state import State
-from idle_state import IdleState
-from dependencies.mqtt.mqtt_functions import *
+from .base_functions.state import State
+from dependencies.mqtt.mqtt_functions import MQTTClient, packetize_results
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
-
+from dependencies.mqtt.topic import check_for_messages
+from logging import info
+from json import dumps
 class SearchState(State):
     ''''''
-    def __init__(self, state_machine, message):
-        super().__init__(state_machine)
+    def __init__(self, state_machine, message, state_id = "Search State"):
+        super().__init__(state_machine, state_id)
         self.message = message
-
-    def enter(self):
-        ''''''
 
     def tick(self):
         ''''''
         try:
-            search_data = {self.message}
+            search_data = self.message
             for subscriber in self.my_state_machine.blocking_subscribers:
-                search_data.update(check_for_messages(subscriber, True))
+                search_data.update(check_for_messages(subscriber))
 
             self._fuzzy_search_database(
                 self.my_state_machine.mqtt_client, 
@@ -29,12 +27,10 @@ class SearchState(State):
 
         except Exception as e:
             info(f"Error : {self.my_state_machine.service_id} fuzzy search failed: {e}")
-            print(f"Error : {self.my_state_machineself.service_id} fuzzy search failed: {e}")
+            print(f"Error : {self.my_state_machine.service_id} fuzzy search failed: {e}")
 
-        self.my_state_machine.change_state(IdleState)
-
-    def exit(self):
-        ''''''
+        from .idle_state import IdleState
+        self.my_state_machine.change_state(IdleState(self.my_state_machine))
 
     def _fuzzy_search_database(self,
         client:MQTTClient, 
@@ -63,7 +59,7 @@ class SearchState(State):
         search_results = db[database_name].search(table_name, message,headers, threshold)
         response["matches_found"]=len(search_results)
         client.publish(
-            f"{self.my_state_machine.service_output}", 
+            f"{self.my_state_machine.service_output.topic}", 
             dumps(response)
         )
         

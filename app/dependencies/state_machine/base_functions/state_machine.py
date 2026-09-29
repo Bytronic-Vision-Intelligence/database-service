@@ -9,6 +9,6 @@ class StateMachine():
         self.state = state
         self.state.enter()
 
-    def _runtime(self):
+    def runtime(self):
         ''''''
-        self.state.tick(self)
+        self.state.tick()

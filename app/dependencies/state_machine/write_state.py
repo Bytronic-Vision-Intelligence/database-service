@@ -1,15 +1,16 @@
-from state import State
-from idle_state import IdleState
-from dependencies.mqtt.mqtt_functions import *
+from .base_functions.state import State
+from dependencies.mqtt.topic import check_for_messages
+from logging import info
 
 class WriteState(State):
     ''''''
-    def __init__(self, state_machine, message):
-            super().__init__(state_machine)
-            self.message = message
+    def __init__(self, state_machine, message, state_id = "Write State"):
+        super().__init__(state_machine, state_id)
+        self.message = message
 
     def tick(self):
         ''''''
+        from .idle_state import IdleState
         db = self.my_state_machine.database
         write_data = self.message
         is_duplicate = self.my_state_machine.database[
@@ -21,12 +22,12 @@ class WriteState(State):
 
         if is_duplicate: 
             print(f"Error : Duplicate sku: {write_data['sku']} found")
-            self.my_state_machine.change_state(IdleState)
+            self.my_state_machine.change_state(IdleState(self.my_state_machine))
 
         for subscriber in self.my_state_machine.blocking_subscribers:
-            subscriber_data=check_for_messages(subscriber, True)
+            subscriber_data=check_for_messages(subscriber)
             if "image" in subscriber_data:
-                 subscriber_data[subscriber.get("name")] = subscriber_data.pop("image")
+                 subscriber_data[subscriber.name] = subscriber_data.pop("image")
 
             write_data.update(subscriber_data)
 
@@ -42,5 +43,5 @@ class WriteState(State):
             info(f"Error transmitting data to database {e}")
             print(f"Error transmitting data to database {e}")
 
-        self.my_state_machine.change_state(IdleState)
+        self.my_state_machine.change_state(IdleState(self.my_state_machine))
         

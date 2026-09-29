@@ -1,18 +1,14 @@
-from state import State
-from search_state import SearchState
-from write_state import WriteState
-
-from database_state_machine import DatabaseStateMachine
+from .base_functions.state import State
+from .search_state import SearchState
+from .write_state import WriteState
+from .remove_state import RemoveState
 from dependencies.mqtt.mqtt_functions import *
+from dependencies.mqtt.topic import check_for_messages
 
 class IdleState(State):
     ''''''
-    def __init__(
-            self, 
-            state_machine:DatabaseStateMachine,
-            state_id:str = "Idle state"):
-        self.my_state_machine = state_machine
-        self.state_id = state_id
+    def __init__(self, state_machine, state_id = "Idle State"):
+        super().__init__(state_machine, state_id)
 
     def tick(self):
         ''''''
@@ -21,10 +17,16 @@ class IdleState(State):
         if instruction == None: return
 
         if instruction == "search_database":
-            self.my_state_machine.change_state(SearchState)
+            self.my_state_machine.change_state(SearchState(
+                self.my_state_machine, message
+            ))
         if instruction == "write_database":
-            self.my_state_machine.change_state(WriteState)
+            self.my_state_machine.change_state(WriteState(
+                self.my_state_machine, message
+            ))
         if instruction == "remove_sku":
-            self.my_state_machine.change_state()
+            self.my_state_machine.change_state(RemoveState(
+                self.my_state_machine, message
+            ))
         if instruction == "update_sku":
             self.my_state_machine.change_state()
