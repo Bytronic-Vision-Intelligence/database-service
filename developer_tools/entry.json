@@ -1,6 +1,9 @@
 {
-    "database": "path/to/database.db",
-    "table": "table_name",
-    "heading_1": "entry",
-    "heading_2": "entry"
+    "database": "data/databases/lws_line3_dev.db",
+    "table": "sku_models",
+    "sku_id": "lws_stirfry_second",
+    "sku_name": "lws_stirfry_second",
+    "model_name": "lws_stirfry_second",
+    "inference_service": 2
+
 }

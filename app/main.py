@@ -50,6 +50,32 @@ def _setup_database(service: dict):
     db["table_name"] = table_name
     return db, search_headers, headers
 
+
+def _table_named(tables: list, table_name: str) -> dict | None:
+    for table in tables or []:
+        if table.get("table_name") == table_name:
+            return table
+    return None
+
+
+def _write_entry(actions: SqliteDatabaseActions, tables: list, message: dict) -> None:
+    """Insert one message. ``table`` names the table; every other field is a column."""
+    table_name = str(message.get("table") or "").strip()
+    if _table_named(tables, table_name) is None:
+        info("Ignoring write for unknown table %s", table_name or "(none)")
+        return
+    if not actions.check_table_exists(table_name):
+        info("Ignoring write for missing table %s", table_name)
+        return
+    actions._check_identifier(table_name)
+    columns = [
+        row[1]
+        for row in actions.connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+        if row[1] != "id"
+    ]
+    actions.insert_row(table_name, message, columns)
+    info("Added entry to %s", table_name)
+
 def build_sku_model_payload(row: dict, models_directory: str | None) -> dict:
     """Shape a sku_table row into the message inference uses to load weights."""
     payload = {
@@ -148,11 +174,13 @@ def main(argv=None):
     mqtt_config = MQTTConfig(host=mqtt["mqtt_ip"], port=mqtt["mqtt_port"])
 
     db, search_headers, headers = _setup_database(service)
+    tables = service.get("tables") or []
 
     client = MQTTClient(mqtt_config)
     client.connect()
 
     topics = create_topic_listners(mqtt, topics)
+    write_topic = next((topic for topic in topics if topic.get("name") == "database_write"), None)
 
     # these need to be made more generic, at some point a function needs to be made that will handle
     # taking info from the config and creating these
@@ -164,7 +192,16 @@ def main(argv=None):
     try:
         while True:
             time.sleep(0.1)
-            message = check_trigger(ui_request)
+            if write_topic is not None:
+                while True:
+                    entry = check_trigger(write_topic)
+                    if not entry:
+                        break
+                    try:
+                        _write_entry(db[db["database_name"]], tables, entry)
+                    except Exception as exc:
+                        info("Error writing database entry: %s", exc)
+            message = check_trigger(ui_request) if ui_request else {}
             if not message:
                 continue
             sku_id = message.get("sku_id") or message.get("sku")

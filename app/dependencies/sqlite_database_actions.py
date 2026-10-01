@@ -118,6 +118,27 @@ class SqliteDatabaseActions(DatabaseActions):
 
         return query, parameters
 
+    def insert_row(self, table_name: str, row: dict, columns: list):
+        """Insert one row. Missing keys are stored as NULL."""
+        self._check_identifier(table_name)
+        if not columns:
+            raise ValueError("No data fields supplied")
+        for name in columns:
+            self._check_identifier(name)
+        placeholders = ", ".join(["?"] * len(columns))
+        names = ", ".join(columns)
+        values = tuple(row.get(name) for name in columns)
+        self.connection.execute(
+            f"INSERT INTO {table_name} ({names}) VALUES ({placeholders})",
+            values,
+        )
+        self.connection.commit()
+
+    @staticmethod
+    def _check_identifier(name: str) -> None:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(name)):
+            raise ValueError(f"Invalid database name: {name}")
+
     def create_table(self, table_name:str, database_columns:dict):
         '''Creates a table within a given database - non functioning, add chore to fix this
         Args:
