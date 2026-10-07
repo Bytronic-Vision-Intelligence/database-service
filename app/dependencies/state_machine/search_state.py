@@ -1,5 +1,6 @@
 from .base_functions.state import State
-from dependencies.mqtt.mqtt_functions import MQTTClient, packetize_results
+from .publish_state import PublishState
+from dependencies.mqtt.mqtt_functions import MQTTClient
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
 from dependencies.mqtt.topic import check_for_messages
 from logging import info
@@ -18,7 +19,7 @@ class SearchState(State):
             for subscriber in self.my_state_machine.blocking_subscribers:
                 search_data.update(check_for_messages(subscriber))
 
-            self._fuzzy_search_database(
+            results = self._fuzzy_search_database(
                 self.my_state_machine.mqtt_client, 
                 search_data, 
                 self.my_state_machine.database, 
@@ -29,6 +30,12 @@ class SearchState(State):
         except Exception as e:
             info(f"Error : {self.my_state_machine.service_id} fuzzy search failed: {e}")
             print(f"Error : {self.my_state_machine.service_id} fuzzy search failed: {e}")
+
+        if results != None:
+            self.my_state_machine.change_state(
+                PublishState(self.my_state_machine, results)
+            )
+            return
 
         from .idle_state import IdleState
         self.my_state_machine.change_state(IdleState(self.my_state_machine))
@@ -64,7 +71,6 @@ class SearchState(State):
             dumps(response)
         )
         
-        if len(search_results) == 0:return
+        if len(search_results) == 0:return None
 
-        packet_list = packetize_results(search_results)
-        client.publish_many(packet_list)
+        return search_results

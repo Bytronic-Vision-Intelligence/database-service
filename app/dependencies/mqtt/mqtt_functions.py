@@ -82,7 +82,7 @@ def create_subtopic_listners(
         subtopic = None
     return subtopic_list
 
-def packetize_results(root_message:any, results:dict, results_map:list[str], topic:str):
+def packetize_results(results:dict, results_map:list[str], topic:str):
     '''splits results into packets and then wraps then appropriately for publication
     Args:
         results: a ditionary of results
@@ -90,10 +90,12 @@ def packetize_results(root_message:any, results:dict, results_map:list[str], top
     Returns:
         a list of dictionaries containing the topic to publish on and the data to publish
     '''
+    if type(results)!= dict:
+        raise TypeError(f"Error : results must be a dictionary")
     packet_list = []
     packet_number = 0
     for candidate in results:
-        if candidate.get("database_response") != None: 
+        if results[candidate].get("database_response") != None: 
             info(f"Error : No matches found, aborting packetization")
             return
         packet = dict()
@@ -102,7 +104,7 @@ def packetize_results(root_message:any, results:dict, results_map:list[str], top
             "packet_number": packet_number,
         }
         for item in results_map:
-            packet["payload"][results_map[item]] = results.get([results_map[item]])
+            packet["payload"][item] = results[candidate].get(item)
         packet_number+=1
         packet_list.append(packet)
     return packet_list

@@ -31,11 +31,11 @@ topics:
   is_trigger: False
 
 - name: "depth_data"
-  topic: churchill/camera/camera_1/colour_image
+  topic: churchill/camera/depth_1/image
   is_subscribe: True
   is_trigger: False
 
 - name: "colour_data"
-  topic: churchill/camera/camera_1/colour_image
+  topic: churchill/camera/depth_1/image
   is_subscribe: True
   is_trigger: False
