@@ -12,7 +12,7 @@ def get_config(config_path:str = "") -> dict:
         config: an empty dict if the file is missing or empty or the corresponding information if found.
     """
     path = Path(config_path)
-    if path == None:
+    if path == Path(""):
         path = _config_path()
     if not path.exists():
         return {}
