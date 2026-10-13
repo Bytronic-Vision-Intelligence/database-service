@@ -14,6 +14,7 @@ class IdleState(State):
     def tick(self):
         '''Waits for a message to be received from the UI, then switches to the appropriate
         state based on the given command found under the database_instruction key'''
+        self.__mqtt_watchdog()
         message = check_for_messages(self.my_state_machine.ui_request)
         instruction = message.get("database_instruction")
         if instruction == None: return
@@ -34,3 +35,10 @@ class IdleState(State):
             self.my_state_machine.change_state(UpdateState(
                 self.my_state_machine, message
             ))
+
+    def __mqtt_watchdog(self):
+        '''a simple process that checks the state of the client and 
+        reconnects if the beoker disconnects due to being idle'''
+        if self.my_state_machine.mqtt_client.is_connected: return
+        print("Info : mqtt client disconnected, reconnecting")
+        self.my_state_machine.mqtt_client.connect()

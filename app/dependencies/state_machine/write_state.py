@@ -1,6 +1,7 @@
 from .base_functions.state import State
 from dependencies.mqtt.topic import check_for_messages
 from logging import info
+from datetime import datetime
 
 class WriteState(State):
     '''A state to control writing data to a database'''
@@ -38,7 +39,7 @@ class WriteState(State):
             subscriber_data=check_for_messages(subscriber)
             if "image" in subscriber_data:
                  subscriber_data[subscriber.name] = subscriber_data.pop("image")
-
+            subscriber_data["date_added"] = datetime.now()
             write_data.update(subscriber_data)
 
         try:
