@@ -14,6 +14,7 @@ class SearchState(State):
     def tick(self):
         '''collects data from a set of blocking subscribers defined by the config (subscribe no trigger)
         and creates a database search query from the details. restults are published to the appropriate MQTT topics'''
+        results = None
         try:
             search_data = self.message
             for subscriber in self.my_state_machine.blocking_subscribers:
