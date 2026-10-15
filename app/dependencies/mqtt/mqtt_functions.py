@@ -1,6 +1,5 @@
 import threading
 from queue import Queue
-from json import JSONDecodeError, loads, dumps
 from logging import info
 
 from mqtt_client import MQTTClient, MQTTConfig
@@ -46,24 +45,6 @@ def start_subscribe_thread(ip: str, port: int, topic: str, queue: Queue, stop_ev
     thread.start()
     return thread
 
-def create_topic_listners(broker:dict, topics:dict):
-    '''creates a set of listners for the given topics and adds
-    qeueue objects to the dictionary as well as reference to the thread
-    '''
-    for topic in topics:
-        if not topic["is_subscribe"]:
-            continue
-        topic["queue"] = Queue()
-
-        topic["thread"] = start_subscribe_thread(
-            broker["mqtt_ip"], 
-            broker["mqtt_port"], 
-            topic["topic"], 
-            topic["queue"],
-            None
-        )
-    return topics
-
 def create_subtopic_listners(
         subtopic_count:int, 
         topic:str, 
@@ -101,34 +82,7 @@ def create_subtopic_listners(
         subtopic = None
     return subtopic_list
 
-def check_for_triggers(trigger:dict, is_blocking:bool=False, timeout:float = 10):
-    '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
-    Args:
-        triggers: a dictionary of topics
-        is_blocking: a boolean value that controls the blocking functionality
-        timout: a float that determines the timout in s
-    Returns:
-        message: the message received from the trigger as dictionary'''
-
-    if not trigger:
-        raise ValueError("Error : trigger cannot be empty")
-    message = {"image": None}
-
-    if is_blocking:
-        try:
-            message = loads(trigger["queue"].get(timeout=timeout))
-            return message
-        except Exception as e:
-            if e != KeyError: info(f"error occured when checking for trigger {e}")
-    
-    try:
-        message = loads(trigger["queue"].get_nowait())
-    except Exception as e:
-        if e != KeyError: info(f"error occured when checking for trigger {e}")
-
-    return message
-
-def packetize_results(root_message:any, results:dict, results_map:list[str], topic:str):
+def packetize_results(results:dict, results_map:list[str], topic:str):
     '''splits results into packets and then wraps then appropriately for publication
     Args:
         results: a ditionary of results
@@ -136,10 +90,12 @@ def packetize_results(root_message:any, results:dict, results_map:list[str], top
     Returns:
         a list of dictionaries containing the topic to publish on and the data to publish
     '''
+    if type(results)!= dict:
+        raise TypeError(f"Error : results must be a dictionary")
     packet_list = []
     packet_number = 0
     for candidate in results:
-        if candidate.get("database_response") != None: 
+        if results[candidate].get("database_response") != None: 
             info(f"Error : No matches found, aborting packetization")
             return
         packet = dict()
@@ -148,38 +104,7 @@ def packetize_results(root_message:any, results:dict, results_map:list[str], top
             "packet_number": packet_number,
         }
         for item in results_map:
-            packet["payload"][results_map[item]] = results.get([results_map[item]])
+            packet["payload"][item] = results[candidate].get(item)
         packet_number+=1
         packet_list.append(packet)
     return packet_list
-
-def check_trigger(trigger:dict, is_blocking:bool=False, timeout:float = 10):
-    '''Checks the queue for each of the trigger topics and returns the message when any of them have received one
-
-    Args:
-        triggers: a dictionary of topics
-        is_blocking: a boolean value that controls the blocking functionality
-        timout: a float that determines the timout in s
-    Returns:
-        message: the message received from the trigger as dictionary'''
-
-    if not trigger:
-        raise ValueError("Error : trigger cannot be empty")
-    
-    message = dict()
-
-    if is_blocking:
-        message = loads(trigger["queue"].get(timeout=timeout))
-        return message
-    
-    if not "queue" in trigger: return message
-
-    try:
-        message = loads(trigger["queue"].get_nowait())
-    except (JSONDecodeError, TypeError) as exc:
-        info(f"Discarding malformed payload on {trigger['topic']}: {exc}")
-        info(f"Discarding malformed payload on {trigger['topic']}: {exc}")
-    except:
-        return message
-
-    return message
