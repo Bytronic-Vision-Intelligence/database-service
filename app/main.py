@@ -4,6 +4,7 @@ from dependencies import loadConfig, logging_setup
 from dependencies.sqlite_database_actions import SqliteDatabaseActions
 
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from logging import info
 from json import dumps
@@ -75,6 +76,50 @@ def _write_entry(actions: SqliteDatabaseActions, tables: list, message: dict) ->
     ]
     actions.insert_row(table_name, message, columns)
     info("Added entry to %s", table_name)
+
+#: How often rows past a table's retention_days are deleted (also once at start).
+PURGE_EVERY_S = 3600.0
+
+
+def _purge_old_rows(actions: SqliteDatabaseActions, tables: list, now: datetime | None = None) -> int:
+    """Delete rows older than each table's ``retention_days``, by its ``date_time`` column
+    (or ``retention_column``). Tables without retention_days are never touched.
+
+    Only stamps written like "2026-10-19 14:23:51.244" are compared, so a row with another
+    format, or none, is never deleted by mistake. The freed space is reused by new rows, so
+    the file stops growing at about retention_days of data; no VACUUM (it locks the file).
+    Returns the number of rows deleted.
+    """
+    now = now or datetime.now()
+    deleted = 0
+    for table in tables or []:
+        days = table.get("retention_days")
+        if days in (None, "", 0):
+            continue
+        name = str(table.get("table_name") or "")
+        column = str(table.get("retention_column") or "date_time")
+        try:
+            days = float(days)
+            if days <= 0:
+                continue
+            actions._check_identifier(name)
+            actions._check_identifier(column)
+            if not actions.check_table_exists(name):
+                continue
+            cutoff = (now - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+            cursor = actions.connection.execute(
+                f"DELETE FROM {name} WHERE {column} LIKE '____-__-__ %' AND {column} < ?",
+                (cutoff,),
+            )
+            actions.connection.commit()
+        except Exception as exc:
+            info("Could not delete old rows from %s: %s", name or "(no name)", exc)
+            continue
+        if cursor.rowcount > 0:
+            info("Deleted %d rows of %s older than %s (retention %g days)", cursor.rowcount, name, cutoff, days)
+            deleted += cursor.rowcount
+    return deleted
+
 
 def build_sku_model_payload(row: dict, models_directory: str | None) -> dict:
     """Shape a sku_table row into the message inference uses to load weights."""
@@ -189,9 +234,13 @@ def main(argv=None):
     depth_data = next((t for t in topics if t.get("name") == "request_command"), None)
     ui_request = next((t for t in topics if t.get("name") == "ui_instruction"), None)
 
+    last_purge = None
     try:
         while True:
             time.sleep(0.1)
+            if last_purge is None or time.monotonic() - last_purge >= PURGE_EVERY_S:
+                last_purge = time.monotonic()
+                _purge_old_rows(db[db["database_name"]], tables)
             if write_topic is not None:
                 while True:
                     entry = check_trigger(write_topic)

@@ -36,6 +36,24 @@ Run the test suite with:
 python -m pytest test
 ```
 
+## Deleting old rows
+
+A table can keep only recent rows. With `retention_days` set, the service deletes
+rows older than that at start and then every hour, by the table's `date_time`
+column (or the column named by `retention_column`):
+
+```yaml
+tables:
+  - table_name: seal_width_results
+    retention_days: 90          # unset or 0: never deleted
+    # retention_column: date_time
+```
+
+Only stamps written like `2026-10-19 14:23:51.244` are compared, so a row with a
+different format or no stamp is never deleted. SQLite reuses the freed space for
+new rows, so the file levels off at about `retention_days` of data rather than
+shrinking (no VACUUM, which would lock the database while it runs).
+
 ## MQTT API
 
 Subscribe to `[project_name]/db/search/sku_data` for commands and publish results to
