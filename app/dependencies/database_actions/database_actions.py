@@ -59,14 +59,57 @@ class DatabaseActions(ABC):
             self.connection.disconnect()
 
     def add_sku(self,database_table, sku:dict, headers:list):
-            '''Adds a new sku to a database table.
+        '''Adds a new sku to a database table.
+        Args:
+            database_table: a string containing the name of the database table to update
+            sku: a dictionary containing the sku data relevent to the database
+            headers: the headers to fit the data into, these must match the keys in the dict
+        '''
+        query, parameters = self._map_to_database(sku, database_table, headers)
+        print("Info : database actions - data mapped")
+        self.execute_query(f"INSERT INTO {query}", parameters)
+
+    def delete_sku(self, database_table:str, data:any, header:str):
+        '''removes an item from the given table using a header and data
+        if the item is not in the database returns nothing
+        Args:
+            database_table: the table to target as a string
+            data: a peice of data to remove the row by
+            header: the header to search and remove from
+        '''
+        query, parameters = self._map_remove_row(database_table, header, data)
+        print("Info : database actions - data mapped")
+        if query == database_table: 
+            raise ValueError(f"Error : this will delete entire table!")
+        self.execute_query(f"DELETE FROM {query}", parameters)
+
+    def update_sku(self, database_table, sku:dict, headers:list):
+        '''updates a database entry, retaining keys
+        Args:
+            database_table: a string containing the name of the database table to update
+            sku: a dictionary containing the sku data relevent to the database
+            headers: the headers to fit the data into, these must match the keys in the dict
+        '''
+        if "id" in headers:
+            headers.remove("id")
+
+        query, parameters = self._map_update_sku(
+            database_table,
+            sku,  
+            headers
+        )
+        print("Info : database actions - data mapped")
+        self.execute_query(query, parameters)
+
+    def _map_update_sku(self, database_table, sku:dict, headers:list):
+        '''creates an update queory based on the given keys
             Args:
-                sku: a dictionary containing the sku data in the following format: depth image: binary, colour image: binary, depth: float, area: float, diameter: float
-            '''
-            query, parameters = self._map_to_database(sku, database_table, headers)
-            print("Info : database actions - data mapped")
-            self.execute_query(f"INSERT INTO {query}", parameters)
-    
+            database_table: a string containing the name of the database table to update
+            sku: a dictionary containing the sku data relevent to the database
+            headers: the headers to fit the data into, these must match the keys in the dict
+        '''
+        pass
+
     def search(
             self, 
             database_table:str, 
@@ -109,20 +152,6 @@ class DatabaseActions(ABC):
         results = self.execute_query(query, parameters)
         if len(results)>0:return True
         return False
-
-    def delete_sku(self, database_table:str, data:any, header:str):
-        '''removes an item from the given table using a header and data
-        if the item is not in the database returns nothing
-        Args:
-            database_table: the table to target as a string
-            data: a peice of data to remove the row by
-            header: the header to search and remove from
-        '''
-        query, parameters = self._map_remove_row(database_table, header, data)
-        print("Info : database actions - data mapped")
-        if query == database_table: 
-            raise ValueError(f"Error : this will delete entire table!")
-        self.execute_query(f"DELETE FROM {query}", parameters)
 
     def _generate_uid(self):
             '''returns a unique identifier'''

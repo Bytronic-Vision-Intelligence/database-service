@@ -1,4 +1,5 @@
 from .base_functions.state import State
+from dependencies.database_actions.mysql_database_actions import MysqlDatabaseActions
 from dependencies.mqtt.topic import check_for_messages
 from logging import info
 from datetime import datetime
@@ -20,7 +21,7 @@ class WriteState(State):
         using the name of the topics as the header
         '''
         from .idle_state import IdleState
-        db = self.my_state_machine.database
+        db:MysqlDatabaseActions = self.my_state_machine.database
         write_data = self.message
 
         is_duplicate = self.my_state_machine.database[

@@ -215,3 +215,23 @@ class SqliteDatabaseActions(DatabaseActions):
         query = f"{table} WHERE ({header}) = (?);"
         parameters = data
         return query, parameters
+
+    def _map_update_sku(self, database_table, data:dict, headers:list):
+        '''creates an update queory based on the given keys
+            Args:
+            database_table: a string containing the name of the database table to update
+            sku: a dictionary containing the sku data relevent to the database
+            headers: the headers to fit the data into, these must match the keys in the dict
+        '''
+        columns = " = ? AND ".join(headers)
+        columns += " = ?"
+        parameters = (data.get("sku"), )
+        for field in headers:
+            try:
+                print(f"added data to parameters {field} {data[field]}")
+                parameters += (data[field],)
+            except:
+                print(f"could not add data to parameters {data[field]}")
+                parameters += ("None",)
+        query = f"UPDATE {database_table} SET sku = ? WHERE {columns};"
+        return query, parameters
