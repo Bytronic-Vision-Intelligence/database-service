@@ -25,7 +25,7 @@ topics:
 database:
   file_location: ../data/database/test_database.db
   database_name: test_database
-  search_threshold: 500
+  search_threshold: 200
   tables:
   - database_table: test_table
     columns:
