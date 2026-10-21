@@ -1,5 +1,5 @@
 from .base_functions.state import State
-from dependencies.mqtt.mqtt_functions import packetize_results
+from dependencies.mqtt.mqtt_functions import packetise_results
 
 class PublishState(State):
     ''''''
@@ -9,7 +9,7 @@ class PublishState(State):
 
     def tick(self):
         ''''''
-        packet_list = packetize_results(
+        packet_list = packetise_results(
             self.data,
             self.my_state_machine.headers,
             self.my_state_machine.service_output.topic
