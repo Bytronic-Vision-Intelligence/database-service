@@ -6,7 +6,7 @@
 /.vscode
 
 docker-local/
-
+*.yaml
 *.dll
 *site-packages
 *.venv
