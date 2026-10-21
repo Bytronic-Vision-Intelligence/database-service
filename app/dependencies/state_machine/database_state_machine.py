@@ -39,7 +39,7 @@ class DatabaseStateMachine(StateMachine):
         '''creates a set of listners for the given topics and adds
         qeueue objects to the dictionary as well as reference to the thread
         '''
-        broker = config.get('broker_details')
+        broker = config.get('mqtt')
         topics = config.get("topics")
         topic_list = {}
         for topic in topics:
