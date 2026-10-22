@@ -3,10 +3,10 @@
 .log
 *claude
 *github
+*.yaml
 /.vscode
 
 docker-local/
-*.yaml
 *.dll
 *site-packages
 *.venv

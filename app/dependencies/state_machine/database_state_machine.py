@@ -39,8 +39,8 @@ class DatabaseStateMachine(StateMachine):
         '''creates a set of listners for the given topics and adds
         qeueue objects to the dictionary as well as reference to the thread
         '''
-        broker = config.get('broker_details')
-        topics = config.get("topics")
+        broker = config.get('mqtt')
+        topics = broker.get("topics")
         topic_list = {}
         for topic in topics:
             topic_new = Topic(broker, topic)
@@ -50,11 +50,11 @@ class DatabaseStateMachine(StateMachine):
     @staticmethod
     def __create_mqtt_client(config:dict):
         '''creates an mqtt client object from the config'''
-        broker_details = config.get("broker_details")
+        mqtt = config.get("mqtt")
         
         mqtt_config = MQTTConfig(
-            host=broker_details["mqtt_ip"], 
-            port=broker_details["mqtt_port"]
+            host=mqtt["mqtt_ip"], 
+            port=mqtt["mqtt_port"]
         )
         client = MQTTClient(mqtt_config)
         client.connect()
