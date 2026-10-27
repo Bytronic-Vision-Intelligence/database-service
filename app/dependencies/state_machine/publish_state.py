@@ -1,6 +1,6 @@
 from .base_functions.state import State
 from mqtt_client import MQTTConnectionError
-from dependencies.mqtt.mqtt_functions import packetize_results
+from dependencies.mqtt.mqtt_functions import packetise_results
 from logging import info
 from time import sleep
 from sys import getsizeof
@@ -19,7 +19,7 @@ class PublishState(State):
     def tick(self):
         ''''''
         
-        packet_list = packetize_results(
+        packet_list = packetise_results(
             self.data,
             self.my_state_machine.headers,
             self.my_state_machine.service_output.topic

@@ -82,7 +82,7 @@ def create_subtopic_listners(
         subtopic = None
     return subtopic_list
 
-def packetize_results(results:dict, results_map:list[str], topic:str):
+def packetise_results(results:dict, results_map:list[str], topic:str):
     '''splits results into packets and then wraps then appropriately for publication
     Args:
         results: a ditionary of results

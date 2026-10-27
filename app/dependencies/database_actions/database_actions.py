@@ -161,6 +161,20 @@ class DatabaseActions(ABC):
         if len(results)>0:return True
         return False
 
+    def delete_sku(self, database_table:str, data:any, header:str):
+        '''removes an item from the given table using a header and data
+        if the item is not in the database returns nothing
+        Args:
+            database_table: the table to target as a string
+            data: a peice of data to remove the row by
+            header: the header to search and remove from
+        '''
+        query, parameters = self._map_remove_row(database_table, header, data)
+        print("Info : database actions - data mapped")
+        if query == database_table: 
+            raise ValueError(f"Error : this will delete entire table!")
+        self.execute_query(f"DELETE FROM {query}", parameters)
+
     def _generate_uid(self):
             '''returns a unique identifier'''
             uid = str(uuid.uuid4())
