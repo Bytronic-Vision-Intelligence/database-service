@@ -52,7 +52,7 @@ def test_construct_fuzzy_search_query_pairs_each_value_with_the_threshold(db):
     query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", 20,headers)
 
     assert "ABS(depth - ?) <= ? AND ABS(radius - ?) <= ?" in query
-    assert parameters == (100.0, 20, 250.0, 20)
+    assert parameters == (100.0, 20, 250.0, 50)
 
 
 def test_map_from_database_keys_rows_by_index_then_column(db):

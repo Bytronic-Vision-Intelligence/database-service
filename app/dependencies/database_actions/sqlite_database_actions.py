@@ -126,7 +126,7 @@ class SqliteDatabaseActions(DatabaseActions):
         parameters = tuple(
             value
             for field in fields
-            for value in (terms[field], threshold)
+            for value in (terms[field], terms[field]*(threshold/100))
         )
 
         return query, parameters
@@ -179,10 +179,8 @@ class SqliteDatabaseActions(DatabaseActions):
         parameters = ()
         for field in fields:
             try:
-                print(f"added data to parameters {field} {data[field]}")
                 parameters += (data[field],)
             except:
-                print(f"could not add data to parameters {data[field]}")
                 parameters += ("None",)
                 
         print("Info : data- mapped")
@@ -228,10 +226,8 @@ class SqliteDatabaseActions(DatabaseActions):
         parameters = (data.get("sku"), )
         for field in headers:
             try:
-                print(f"added data to parameters {field} {data[field]}")
                 parameters += (data[field],)
             except:
-                print(f"could not add data to parameters {data[field]}")
                 parameters += ("None",)
         query = f"UPDATE {database_table} SET sku = ? WHERE {columns};"
         return query, parameters

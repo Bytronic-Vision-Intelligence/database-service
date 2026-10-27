@@ -75,7 +75,7 @@ class DatabaseStateMachine(StateMachine):
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
-        db["threshold"]=database["search_threshold"]
+        db["threshold"]=database.get("search_threshold",0)        
         return db, headers, search_headers
 
     @staticmethod

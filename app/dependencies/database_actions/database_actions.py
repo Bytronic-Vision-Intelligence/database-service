@@ -43,12 +43,11 @@ class DatabaseActions(ABC):
             raise ValueError("query cannot be empty")
         
         cursor = self.connection.cursor()
-        print(f"Info : Executing queory: {query}")
         try:
             if type(parameters) == str: parameters = (parameters,)
             cursor.execute(query, parameters)
             self.connection.commit()
-            print("Query successful")
+            print("Info : Query successful")
             return cursor.fetchall()
         except Exception as err:
             raise ConnectionError(f"Error: execute_query '{err}'")
@@ -124,9 +123,18 @@ class DatabaseActions(ABC):
             search_results: a dictionary of results from the server
         '''
         if threshold == 0:
-            search_term, parameters = self._construct_search_query(search_details, database_table, headers)
+            search_term, parameters = self._construct_search_query(
+                search_details, 
+                database_table, 
+                headers
+            )
         else:
-            search_term, parameters = self._construct_fuzzy_search_query(search_details, database_table, threshold, headers)
+            search_term, parameters = self._construct_fuzzy_search_query(
+                search_details, 
+                database_table, 
+                threshold, 
+                headers
+            )
         query = f"{search_term}"
 
         results = self.execute_query(query, parameters)
