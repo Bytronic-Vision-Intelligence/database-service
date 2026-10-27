@@ -10,7 +10,7 @@ class DatabaseStateMachine(StateMachine):
         super().__init__()
         self.service_id = config.get("service_id", "database_1")
         self.mqtt_client = self.__create_mqtt_client(config)
-        self.topics = self.__create_topic_listners(config)
+        self.topics = self.__create_topic_listeners(config)
         self.database, self.headers, self.search_headers = self.__setup_database(config)
         self.ui_request = self.__get_topic(self.topics,"hmi_request")
         self.service_output = self.__get_topic(self.topics, "database_output")
@@ -35,12 +35,12 @@ class DatabaseStateMachine(StateMachine):
 
 
     @staticmethod
-    def __create_topic_listners(config:dict):
-        '''creates a set of listners for the given topics and adds
+    def __create_topic_listeners(config:dict):
+        '''creates a set of listeners for the given topics and adds
         qeueue objects to the dictionary as well as reference to the thread
         '''
         broker = config.get('mqtt')
-        topics = config.get("topics")
+        topics = broker.get("topics")
         topic_list = {}
         for topic in topics:
             topic_new = Topic(broker, topic)
@@ -50,11 +50,11 @@ class DatabaseStateMachine(StateMachine):
     @staticmethod
     def __create_mqtt_client(config:dict):
         '''creates an mqtt client object from the config'''
-        broker_details = config.get("mqtt")
+        mqtt = config.get("mqtt")
         
         mqtt_config = MQTTConfig(
-            host=broker_details["mqtt_ip"], 
-            port=broker_details["mqtt_port"]
+            host=mqtt["mqtt_ip"], 
+            port=mqtt["mqtt_port"]
         )
         client = MQTTClient(mqtt_config)
         client.connect()
@@ -63,7 +63,8 @@ class DatabaseStateMachine(StateMachine):
     @staticmethod
     def __setup_database(client:dict):
         '''used to setup a database'''
-        database = client.get("database")
+        service = client.get("service")
+        database = service.get("database")
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}

@@ -45,13 +45,13 @@ def start_subscribe_thread(ip: str, port: int, topic: str, queue: Queue, stop_ev
     thread.start()
     return thread
 
-def create_subtopic_listners(
+def create_subtopic_listeners(
         subtopic_count:int, 
         topic:str, 
         name:str,
         broker_info:dict
     ):
-    '''creates listners for a set of subtopics and returns a list of those subtopics
+    '''creates listeners for a set of subtopics and returns a list of those subtopics
     Args:
         subtopic_count: the number of subtopics to create as an int
         topic: a string containing the main topic
