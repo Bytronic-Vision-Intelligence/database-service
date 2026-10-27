@@ -3,11 +3,11 @@ from pathlib import Path
 
 
 def _config_path() -> Path:
-    return Path(__file__).resolve().parent.parent / "configs" / "config.yaml"
+    return Path(__file__).resolve().parent.parent.parent / "config.yaml"
 
 
 def get_config(config_path:str = "") -> dict:
-    """Read and return configuration from the local `config.yaml` next to this module.
+    """Read and return configuration from the repository `config.yaml`.
     Returns:
         config: an empty dict if the file is missing or empty or the corresponding information if found.
     """
