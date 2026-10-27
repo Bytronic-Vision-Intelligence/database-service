@@ -1,7 +1,11 @@
-broker_details:
+mqtt:
   mqtt_ip: localhost
   mqtt_port: 1883
 topics:
+- name: status_output
+  topic: churchill/database/status
+  is_subscribe: false
+  is_trigger: false
 - name: hmi_request
   topic: churchill/ui/ui_1/instruction
   is_trigger: true
@@ -25,7 +29,7 @@ topics:
 database:
   file_location: ../data/database/test_database.db
   database_name: test_database
-  search_threshold: 500
+  search_threshold: 0
   tables:
   - database_table: test_table
     columns:
@@ -38,5 +42,5 @@ database:
     - sku
     searchable_columns:
     - depth
-    - perimeter
-    - radius
+    editable_columns:
+    - sku

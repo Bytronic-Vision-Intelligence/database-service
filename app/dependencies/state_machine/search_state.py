@@ -65,7 +65,11 @@ class SearchState(State):
         table_name = message.get("database_table")
         if table_name == None: raise ValueError(f"Error : table name cannot be None")
         
-        search_results = db[database_name].search(table_name, message,headers, threshold)
+        search_results = db[database_name].search(
+            table_name, 
+            message,headers, 
+            threshold
+        )
         response["matches_found"]=len(search_results)
         client.publish(
             f"{self.my_state_machine.service_output.topic}", 

@@ -33,7 +33,7 @@ class WriteState(State):
 
         if is_duplicate: 
             print(f"Error : Duplicate sku: {write_data['sku']} found")
-            self.my_state_machine.change_state(IdleState(self.my_state_machine))
+            self.__move_to_write(self.message)
             return
 
         for subscriber in self.my_state_machine.blocking_subscribers:
@@ -56,4 +56,7 @@ class WriteState(State):
             print(f"Error transmitting data to database {e}")
 
         self.my_state_machine.change_state(IdleState(self.my_state_machine))
-        
+
+    def __move_to_write(self, message):
+        from .update_state import UpdateState
+        self.my_state_machine.change_state(UpdateState(self.my_state_machine, self.message))
