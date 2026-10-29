@@ -5,6 +5,8 @@
 *github
 *.yaml
 /.vscode
+config-*
+config.yaml
 
 docker-local/
 *.dll

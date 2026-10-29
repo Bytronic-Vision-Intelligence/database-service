@@ -25,7 +25,9 @@ class PublishState(State):
             self.my_state_machine.service_output.topic
         )
 
-        if packet_list == None: self.__return_idle()
+        if packet_list == None:
+            self.__return_idle()
+            return
         self.publish_list(packet_list)
 
         self.__return_idle()
@@ -45,7 +47,7 @@ class PublishState(State):
         for packet in packet_list:
             payload = packet.get("payload")
             topic = packet.get("topic")
-            payload.pop("depth_data")
+            payload.pop("depth_data", None)
             packet_size = getsizeof(
                 payload
             )

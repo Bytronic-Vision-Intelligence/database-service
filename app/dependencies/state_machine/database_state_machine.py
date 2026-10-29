@@ -12,7 +12,7 @@ class DatabaseStateMachine(StateMachine):
         self.mqtt_client = self.__create_mqtt_client(config)
         self.topics = self.__create_topic_listeners(config)
         self.database, self.headers, self.search_headers = self.__setup_database(config)
-        self.ui_request = self.__get_topic(self.topics,"hmi_request")
+        self.ui_request = self.__get_topic(self.topics,"ui_request")
         self.service_output = self.__get_topic(self.topics, "database_output")
         self.blocking_subscribers = self.__get_blocking_subscribers(self.topics)
         self.state = IdleState(self)
