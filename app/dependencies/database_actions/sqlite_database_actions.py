@@ -242,13 +242,16 @@ class SqliteDatabaseActions(DatabaseActions):
             sku: a dictionary containing the sku data relevent to the database
             headers: the headers to fit the data into, these must match the keys in the dict
         '''
-        columns = " = ? AND ".join(headers)
-        columns += " = ?"
-        parameters = (data.get("sku"), )
-        for field in headers:
-            try:
-                parameters += (data[field],)
-            except:
-                parameters += ("None",)
-        query = f"UPDATE {database_table} SET sku = ? WHERE {columns};"
+        # The row is found by its sku; every other column the new capture carries replaces the
+        # stored value. Columns missing from it (an image read that timed out) keep theirs.
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
+            raise ValueError("Invalid database table name")
+        fields = [field for field in headers if field not in ("id", "sku") and data.get(field) is not None]
+        if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
+            raise ValueError("Invalid database column name")
+        if not fields:
+            return None, None
+        assignments = ", ".join(f"{field} = ?" for field in fields)
+        parameters = tuple(data[field] for field in fields) + (data.get("sku"),)
+        query = f"UPDATE {database_table} SET {assignments} WHERE sku = ?;"
         return query, parameters

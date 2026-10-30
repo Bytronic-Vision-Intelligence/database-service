@@ -89,14 +89,17 @@ class DatabaseActions(ABC):
             sku: a dictionary containing the sku data relevent to the database
             headers: the headers to fit the data into, these must match the keys in the dict
         '''
-        if "id" in headers:
-            headers.remove("id")
+        # a copy: the caller's list is the state machine's, shared with every later insert
+        headers = [header for header in headers if header != "id"]
 
         query, parameters = self._map_update_sku(
             database_table,
-            sku,  
+            sku,
             headers
         )
+        if query is None:
+            print(f"Info : nothing to update for sku {sku.get('sku')}")
+            return
         print("Info : database actions - data mapped")
         self.execute_query(query, parameters)
 
