@@ -52,3 +52,12 @@ def test_update_does_not_change_the_callers_column_list(db):
     db.update_sku("test_table", {"sku": "13", "depth": 26.09}, headers)
 
     assert headers == HEADERS
+
+
+def test_a_new_part_stores_its_description_and_leaves_missing_fields_empty(db):
+    db.add_sku("test_table", {"sku": "20", "depth": 25.0, "description": "Blue rim bowl"},
+               HEADERS + ["description"])
+    stored = db.connection.execute(
+        "SELECT id, description, colour_data FROM test_table WHERE sku = '20'").fetchone()
+
+    assert stored[0] and stored[1] == "Blue rim bowl" and stored[2] is None

@@ -199,11 +199,10 @@ class SqliteDatabaseActions(DatabaseActions):
         query = f"{table} ({columns}) VALUES ({placeholders})"
         parameters = ()
         for field in fields:
-            try:
-                parameters += (data[field],)
-            except:
-                parameters += ("None",)
-                
+            # a field the capture lacks is stored empty (NULL), not as the text "None", which
+            # object-matching would try to decode as an image and the HMI would show as a value
+            parameters += (data.get(field),)
+
         print("Info : data- mapped")
         return query, parameters
     
