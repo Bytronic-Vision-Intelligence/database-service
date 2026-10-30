@@ -53,7 +53,9 @@ def test_construct_fuzzy_search_query_pairs_each_value_with_the_threshold(db):
 
     # a single threshold is a percentage of each measured value
     assert "ABS(depth - ?) <= ? AND ABS(radius - ?) <= ?" in query
-    assert parameters == (100.0, 20.0, 250, 50.0)
+    # WHERE pairs each value with its tolerance; ORDER BY repeats them to rank nearest first
+    assert parameters == (100.0, 20.0, 250, 50.0) * 2
+    assert "ORDER BY ABS(depth - ?) / ? + ABS(radius - ?) / ?" in query
 
 
 def test_construct_fuzzy_search_query_uses_each_columns_own_tolerance(db):
@@ -61,7 +63,7 @@ def test_construct_fuzzy_search_query_uses_each_columns_own_tolerance(db):
     tolerances = {"depth": {"mm": 1.5}, "perimeter": {"percent": 2.5}}
     query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", tolerances, ["depth", "perimeter"])
 
-    assert parameters == (25.0, 1.5, 700.0, 17.5)
+    assert parameters == (25.0, 1.5, 700.0, 17.5) * 2
 
 
 def test_a_tolerance_must_be_mm_or_percent(db):

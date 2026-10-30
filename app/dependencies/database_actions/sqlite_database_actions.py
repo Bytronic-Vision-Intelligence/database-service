@@ -94,8 +94,9 @@ class SqliteDatabaseActions(DatabaseActions):
             self, 
             terms:dict, 
             database_table:str, 
-            threshold:int, 
-            headers:list
+            threshold:int,
+            headers:list,
+            max_results:int = None
         ):
         '''creates a search queory from a dictionary of terms
         Args:
@@ -114,17 +115,26 @@ class SqliteDatabaseActions(DatabaseActions):
             for field in fields
         ]
 
+        tolerances = [max(self._tolerance(field, terms[field], threshold), 1e-9) for field in fields]
+        # nearest first: each column's distance as a share of its tolerance, summed. Object-matching
+        # reads only the first match_count results, so row order would drop a close plate stored
+        # late (SKU 67 was 11th of 15 in its size group and never reached the matcher).
+        closeness = " + ".join(f"ABS({field} - ?) / ?" for field in fields)
         query = f"""
             SELECT *
             FROM {database_table}
             WHERE {" AND ".join(conditions)}
+            ORDER BY {closeness}
         """.strip()
 
         parameters = tuple(
             value
-            for field in fields
-            for value in (terms[field], self._tolerance(field, terms[field], threshold))
-        )
+            for field, tolerance in zip(fields, tolerances)
+            for value in (terms[field], tolerance)
+        ) * 2
+        if max_results:
+            query += "\n            LIMIT ?"
+            parameters += (int(max_results),)
 
         return query, parameters
 

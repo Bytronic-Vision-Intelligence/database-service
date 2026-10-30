@@ -117,11 +117,13 @@ class DatabaseActions(ABC):
             database_table:str, 
             search_details:dict,
             headers:list,
-            threshold:float = 0):
+            threshold:float = 0,
+            max_results:int = None):
         '''Performs a search on a database table based on a set list of comumns and their associated data
         Args:
             database_table: a string value containing the database table that will be targeted for the search
             search_details: a ditcionary containing the search details
+            max_results: with a threshold, return at most this many, nearest first
         Returns:
             search_results: a dictionary of results from the server
         '''
@@ -135,8 +137,9 @@ class DatabaseActions(ABC):
             search_term, parameters = self._construct_fuzzy_search_query(
                 search_details, 
                 database_table, 
-                threshold, 
-                headers
+                threshold,
+                headers,
+                max_results
             )
         query = f"{search_term}"
 

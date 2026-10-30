@@ -61,3 +61,17 @@ def test_a_new_part_stores_its_description_and_leaves_missing_fields_empty(db):
         "SELECT id, description, colour_data FROM test_table WHERE sku = '20'").fetchone()
 
     assert stored[0] and stored[1] == "Blue rim bowl" and stored[2] is None
+
+
+def test_a_search_returns_the_nearest_plates_first_and_no_more_than_asked(db):
+    # three same-size plates stored far-to-near: row order would give the farthest first
+    db.connection.executemany(
+        "INSERT INTO test_table (id, depth, perimeter, radius, sku) VALUES (?, ?, ?, ?, ?)",
+        [("a", 24.3, 718.0, 116.0, "far"), ("b", 24.36, 719.5, 116.2, "near"), ("c", 24.36, 719.9, 116.3, "nearest")])
+    db.connection.commit()
+    db.set_database_map("test_table")
+    tolerances = {"depth": {"mm": 2}, "perimeter": {"percent": 2.5}, "radius": {"percent": 2.5}}
+    found = db.search("test_table", {"depth": 24.36, "perimeter": 719.9, "radius": 116.3},
+                      ["depth", "perimeter", "radius"], tolerances, 2)
+
+    assert [row["sku"] for row in found.values()] == ["nearest", "near"]
