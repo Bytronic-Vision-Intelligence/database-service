@@ -2,7 +2,7 @@ from .base_functions.state import State
 from .publish_state import PublishState
 from dependencies.mqtt.mqtt_functions import MQTTClient
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
-from dependencies.mqtt.topic import check_for_messages
+from dependencies.mqtt.topic import check_for_matching_message
 from logging import info
 from json import dumps
 class SearchState(State):
@@ -18,7 +18,7 @@ class SearchState(State):
         try:
             search_data = self.message
             for subscriber in self.my_state_machine.blocking_subscribers:
-                search_data.update(check_for_messages(subscriber))
+                search_data.update(check_for_matching_message(subscriber, self.message.get("message_id")))
 
             results = self._fuzzy_search_database(
                 self.my_state_machine.mqtt_client, 

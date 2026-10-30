@@ -1,7 +1,8 @@
-from queue import Queue
+from queue import Queue, Empty
 from .mqtt_functions import start_subscribe_thread
 from json import loads
 from logging import info
+from time import monotonic
 
 class Topic():
     '''a class to host topics and their associated information making
@@ -55,3 +56,29 @@ def check_for_messages(topic:Topic):
         if e != KeyError: info(f"error occured when checking for trigger {e}")
 
     return message
+
+
+def check_for_matching_message(topic:Topic, message_id:str=None):
+    '''Waits on a blocking topic for the message captured for this instruction, discarding any
+    left over from earlier instructions so a cycle never searches with a previous cycle's data
+    Args:
+        topic: a blocking (subscribe, not trigger) topic
+        message_id: the message_id of the instruction being served, None reads the next message
+    Returns:
+        message: the matching message as a dictionary, or {"image": None} on timeout'''
+    if message_id is None:
+        return check_for_messages(topic)
+
+    deadline = monotonic() + topic.timeout
+    while True:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            info(f"Error : no message for {message_id} on {topic.topic} within {topic.timeout} s")
+            return {"image": None}
+        try:
+            message = loads(topic.queue.get(block = True, timeout=remaining))
+        except Empty:
+            continue
+        if message.get("message_id") == message_id:
+            return message
+        info(f"Info : discarding stale message {message.get('message_id')} on {topic.topic}, waiting for {message_id}")

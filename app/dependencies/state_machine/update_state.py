@@ -1,7 +1,7 @@
 from dependencies.state_machine.base_functions.state import State
 from dependencies.state_machine.write_state import WriteState
 from dependencies.database_actions.mysql_database_actions import MysqlDatabaseActions
-from dependencies.mqtt.topic import check_for_messages
+from dependencies.mqtt.topic import check_for_matching_message
 from datetime import datetime
 from logging import info
 
@@ -35,7 +35,7 @@ class UpdateState(State):
             return
 
         for subscriber in self.my_state_machine.blocking_subscribers:
-            subscriber_data=check_for_messages(subscriber)
+            subscriber_data=check_for_matching_message(subscriber, self.message.get("message_id"))
             if "image" in subscriber_data:
                     subscriber_data[subscriber.name] = subscriber_data.pop("image")
             subscriber_data["date_added"] = datetime.now()

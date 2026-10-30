@@ -24,6 +24,8 @@ class PublishState(State):
             self.my_state_machine.headers,
             self.my_state_machine.service_output.topic
         )
+        for packet in packet_list or []:
+            packet["payload"]["message_id"] = self.my_state_machine.message_id
 
         if packet_list == None: self.__return_idle()
         self.publish_list(packet_list)

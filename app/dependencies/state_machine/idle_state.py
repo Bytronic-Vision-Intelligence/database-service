@@ -18,6 +18,7 @@ class IdleState(State):
         message = check_for_messages(self.my_state_machine.ui_request)
         instruction = message.get("database_instruction")
         if instruction == None: return
+        self.my_state_machine.message_id = message.get("message_id")
 
         if instruction == "search_database":
             self.my_state_machine.change_state(SearchState(

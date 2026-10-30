@@ -15,6 +15,8 @@ class DatabaseStateMachine(StateMachine):
         self.ui_request = self.__get_topic(self.topics,"hmi_request")
         self.service_output = self.__get_topic(self.topics, "database_output")
         self.blocking_subscribers = self.__get_blocking_subscribers(self.topics)
+        # message_id of the instruction being served, echoed on the results it produces
+        self.message_id = None
         self.state = IdleState(self)
 
     def publish_message(
