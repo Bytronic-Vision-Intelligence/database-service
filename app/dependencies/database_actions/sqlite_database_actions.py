@@ -109,9 +109,6 @@ class SqliteDatabaseActions(DatabaseActions):
         if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
             raise ValueError("Invalid database column name")
 
-        if threshold < 0:
-            raise ValueError("Threshold must be non-negative")
-
         conditions = [
             f"ABS({field} - ?) <= ?"
             for field in fields
@@ -126,10 +123,34 @@ class SqliteDatabaseActions(DatabaseActions):
         parameters = tuple(
             value
             for field in fields
-            for value in (terms[field], terms[field]*(threshold/100))
+            for value in (terms[field], self._tolerance(field, terms[field], threshold))
         )
 
         return query, parameters
+
+    @staticmethod
+    def _tolerance(field:str, value:float, threshold) -> float:
+        '''how far a stored value may be from the measured one and still match
+        Args:
+            field: the column being searched
+            value: the measured value
+            threshold: a percentage of the value for every column, or per-column tolerances
+                {column: {"mm": 1.5} or {"percent": 2.5}} (a depth of 25 mm and a perimeter of
+                700 mm vary by very different amounts, so one percentage does not suit both)
+        Returns:
+            the tolerance in the column's units
+        '''
+        if isinstance(threshold, dict):
+            spec = threshold.get(field)
+            if not isinstance(spec, dict) or len(spec) != 1 or not set(spec) <= {"mm", "percent"}:
+                raise ValueError(f"search_tolerances.{field} must be {{mm: n}} or {{percent: n}}, not {spec!r}")
+            (unit, amount), = spec.items()
+            tolerance = float(amount) if unit == "mm" else abs(float(value)) * float(amount) / 100
+        else:
+            tolerance = abs(float(value)) * float(threshold) / 100
+        if tolerance < 0:
+            raise ValueError("Threshold must be non-negative")
+        return tolerance
 
     def create_table(self, table_name:str, database_columns:dict):
         '''Creates a table within a given database - non functioning, add chore to fix this

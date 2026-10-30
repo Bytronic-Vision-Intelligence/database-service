@@ -51,8 +51,22 @@ def test_construct_fuzzy_search_query_pairs_each_value_with_the_threshold(db):
     headers = ["depth", "radius"]
     query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", 20,headers)
 
+    # a single threshold is a percentage of each measured value
     assert "ABS(depth - ?) <= ? AND ABS(radius - ?) <= ?" in query
-    assert parameters == (100.0, 20, 250.0, 50)
+    assert parameters == (100.0, 20.0, 250, 50.0)
+
+
+def test_construct_fuzzy_search_query_uses_each_columns_own_tolerance(db):
+    terms = {"depth": 25.0, "perimeter": 700.0}
+    tolerances = {"depth": {"mm": 1.5}, "perimeter": {"percent": 2.5}}
+    query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", tolerances, ["depth", "perimeter"])
+
+    assert parameters == (25.0, 1.5, 700.0, 17.5)
+
+
+def test_a_tolerance_must_be_mm_or_percent(db):
+    with pytest.raises(ValueError):
+        db._construct_fuzzy_search_query({"depth": 25.0}, "sku_table", {"depth": {"inches": 1}}, ["depth"])
 
 
 def test_map_from_database_keys_rows_by_index_then_column(db):

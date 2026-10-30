@@ -77,7 +77,15 @@ class DatabaseStateMachine(StateMachine):
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
-        db["threshold"]=database.get("search_threshold",0)        
+        # per-column tolerances win over the single percentage, and every searchable column needs one
+        tolerances = database.get("search_tolerances")
+        if tolerances is not None:
+            missing = [column for column in search_headers if column not in tolerances]
+            if missing:
+                raise ValueError(f"Error : search_tolerances has no entry for {missing}")
+            for column in search_headers:
+                SqliteDatabaseActions._tolerance(column, 1.0, tolerances)  # fail at start-up, not mid-search
+        db["threshold"]=tolerances if tolerances is not None else database.get("search_threshold",0)
         return db, headers, search_headers
 
     @staticmethod
