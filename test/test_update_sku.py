@@ -75,3 +75,43 @@ def test_a_search_returns_the_nearest_plates_first_and_no_more_than_asked(db):
                       ["depth", "perimeter", "radius"], tolerances, 2)
 
     assert [row["sku"] for row in found.values()] == ["nearest", "near"]
+
+
+TOLERANCES = {"depth": {"mm": 2}, "perimeter": {"percent": 2.5}, "radius": {"percent": 2.5}}
+PLATE = {"depth": 24.36, "perimeter": 719.9, "radius": 116.3}
+
+
+def test_the_search_index_is_created_once_and_used_without_reading_the_images(db):
+    columns = ["depth", "perimeter", "radius"]
+    name = db.create_search_index("test_table", columns)
+    db.create_search_index("test_table", columns)          # every start-up: must not fail the second time
+    indexed = [r[2] for r in db.connection.execute(f"PRAGMA index_info({name})")]
+    assert indexed == columns
+
+    query, parameters = db._construct_fuzzy_search_query(PLATE, "test_table", TOLERANCES, columns, 8)
+    plan = " | ".join(r[-1] for r in db.connection.execute(f"EXPLAIN QUERY PLAN {query}", parameters))
+    # the nearest rows are chosen from the index alone; only those rows are read in full
+    assert f"COVERING INDEX {name}" in plan
+
+
+def test_with_many_plates_in_tolerance_the_search_returns_the_nearest_few_in_order(db):
+    db.create_search_index("test_table", ["depth", "perimeter", "radius"])
+    rows = [(f"id-{i}", PLATE["depth"] + i * 0.01, PLATE["perimeter"] + i * 0.1, PLATE["radius"],
+             "depth image", "colour image", f"same-size-{i}") for i in range(40)]
+    db.connection.executemany(
+        "INSERT INTO test_table (id, depth, perimeter, radius, depth_data, colour_data, sku) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        rows[::-1])                                            # stored farthest first
+    db.connection.commit()
+    db.set_database_map("test_table")
+    found = db.search("test_table", PLATE, ["depth", "perimeter", "radius"], TOLERANCES, 8)
+
+    assert [r["sku"] for r in found.values()] == [f"same-size-{i}" for i in range(8)]
+    assert all(r["colour_data"] == "colour image" for r in found.values())   # full rows come back
+
+
+def test_a_search_with_nothing_in_tolerance_returns_nothing(db):
+    db.create_search_index("test_table", ["depth", "perimeter", "radius"])
+    db.set_database_map("test_table")
+    found = db.search("test_table", {"depth": 90.0, "perimeter": 300.0, "radius": 50.0},
+                      ["depth", "perimeter", "radius"], TOLERANCES, 8)
+    assert len(found) == 0

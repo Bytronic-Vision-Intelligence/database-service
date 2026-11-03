@@ -86,6 +86,9 @@ class DatabaseStateMachine(StateMachine):
             for column in search_headers:
                 SqliteDatabaseActions._tolerance(column, 1.0, tolerances)  # fail at start-up, not mid-search
         db["threshold"]=tolerances if tolerances is not None else database.get("search_threshold",0)
+        if search_headers and db["threshold"]:
+            # once per database: without it every search reads every plate's images
+            db[database["database_name"]].create_search_index(table_name, search_headers)
         # the most plates a search returns, nearest first; match object-matching's match_count
         db["max_results"]=database.get("max_results")
         return db, headers, search_headers

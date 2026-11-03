@@ -133,10 +133,39 @@ class SqliteDatabaseActions(DatabaseActions):
             for value in (terms[field], tolerance)
         ) * 2
         if max_results:
-            query += "\n            LIMIT ?"
-            parameters += (int(max_results),)
+            # two steps: pick the nearest rows by their measurements alone, which the search index
+            # covers, then read only those rows. Reading SELECT * for every row in tolerance reads
+            # each plate's reference images (about 2 MB) and costs about 4 ms per stored plate.
+            query = f"""
+            SELECT *
+            FROM {database_table}
+            WHERE rowid IN (
+                SELECT rowid
+                FROM {database_table}
+                WHERE {" AND ".join(conditions)}
+                ORDER BY {closeness}
+                LIMIT ?
+            )
+            ORDER BY {closeness}
+            """.strip()
+            parameters += (int(max_results),) + parameters[len(parameters) // 2:]
 
         return query, parameters
+
+    def create_search_index(self, database_table:str, columns:list):
+        '''indexes the searchable columns, so a search reads the measurements without the reference
+        images stored in the same rows
+        Args:
+            database_table: the table searched
+            columns: the searchable columns, in search order
+        '''
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
+            raise ValueError("Invalid database table name")
+        if not columns or any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", c) for c in columns):
+            raise ValueError("Invalid database column name")
+        name = f"idx_{database_table}_search"
+        self.execute_query(f"CREATE INDEX IF NOT EXISTS {name} ON {database_table} ({', '.join(columns)})", ())
+        return name
 
     @staticmethod
     def _tolerance(field:str, value:float, threshold) -> float:
