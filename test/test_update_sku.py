@@ -70,14 +70,14 @@ def test_a_search_returns_the_nearest_plates_first_and_no_more_than_asked(db):
         [("a", 24.3, 718.0, 116.0, "far"), ("b", 24.36, 719.5, 116.2, "near"), ("c", 24.36, 719.9, 116.3, "nearest")])
     db.connection.commit()
     db.set_database_map("test_table")
-    tolerances = {"depth": {"mm": 2}, "perimeter": {"percent": 2.5}, "radius": {"percent": 2.5}}
+    tolerances = {"depth": {"absolute": 2}, "perimeter": {"percent": 2.5}, "radius": {"percent": 2.5}}
     found = db.search("test_table", {"depth": 24.36, "perimeter": 719.9, "radius": 116.3},
                       ["depth", "perimeter", "radius"], tolerances, 2)
 
     assert [row["sku"] for row in found.values()] == ["nearest", "near"]
 
 
-TOLERANCES = {"depth": {"mm": 2}, "perimeter": {"percent": 2.5}, "radius": {"percent": 2.5}}
+TOLERANCES = {"depth": {"absolute": 2}, "perimeter": {"percent": 2.5}, "radius": {"percent": 2.5}}
 PLATE = {"depth": 24.36, "perimeter": 719.9, "radius": 116.3}
 
 

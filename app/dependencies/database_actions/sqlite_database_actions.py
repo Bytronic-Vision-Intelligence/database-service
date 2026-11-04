@@ -174,17 +174,19 @@ class SqliteDatabaseActions(DatabaseActions):
             field: the column being searched
             value: the measured value
             threshold: a percentage of the value for every column, or per-column tolerances
-                {column: {"mm": 1.5} or {"percent": 2.5}} (a depth of 25 mm and a perimeter of
-                700 mm vary by very different amounts, so one percentage does not suit both)
+                {column: {"absolute": 1.5} or {"percent": 2.5}}. "absolute" is in the column's own
+                units (mm, pixels, grams...). Columns can need different kinds of tolerance: a depth
+                of 25 mm and a perimeter of 700 mm vary by very different amounts, so one percentage
+                does not suit both.
         Returns:
             the tolerance in the column's units
         '''
         if isinstance(threshold, dict):
             spec = threshold.get(field)
-            if not isinstance(spec, dict) or len(spec) != 1 or not set(spec) <= {"mm", "percent"}:
-                raise ValueError(f"search_tolerances.{field} must be {{mm: n}} or {{percent: n}}, not {spec!r}")
+            if not isinstance(spec, dict) or len(spec) != 1 or not set(spec) <= {"absolute", "percent"}:
+                raise ValueError(f"search_tolerances.{field} must be {{absolute: n}} or {{percent: n}}, not {spec!r}")
             (unit, amount), = spec.items()
-            tolerance = float(amount) if unit == "mm" else abs(float(value)) * float(amount) / 100
+            tolerance = float(amount) if unit == "absolute" else abs(float(value)) * float(amount) / 100
         else:
             tolerance = abs(float(value)) * float(threshold) / 100
         if tolerance < 0:
