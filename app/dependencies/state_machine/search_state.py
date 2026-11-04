@@ -22,6 +22,16 @@ class SearchState(State):
             for subscriber in self.my_state_machine.blocking_subscribers:
                 search_data.update(check_for_matching_message(subscriber, self.message.get("message_id")))
 
+            missing = [column for column in self.my_state_machine.search_headers if search_data.get(column) is None]
+            if missing:
+                # usually the measuring service did not answer in time, e.g. just after start-up
+                logger.error(
+                    "Search for instruction %s skipped: no %s received",
+                    self.message.get("message_id"), ", ".join(missing),
+                )
+                self.__return_idle()
+                return
+
             results = self._fuzzy_search_database(
                 self.my_state_machine.mqtt_client, 
                 search_data, 
@@ -31,7 +41,7 @@ class SearchState(State):
             )
 
         except Exception as e:
-            logger.error("%s fuzzy search failed: %s", self.my_state_machine.service_id, e)
+            logger.error("%s search failed: %r", self.my_state_machine.service_id, e)
 
         if results != None:
             self.my_state_machine.change_state(
@@ -39,6 +49,9 @@ class SearchState(State):
             )
             return
 
+        self.__return_idle()
+
+    def __return_idle(self):
         from .idle_state import IdleState
         self.my_state_machine.change_state(IdleState(self.my_state_machine))
 
