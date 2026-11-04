@@ -51,8 +51,24 @@ def test_construct_fuzzy_search_query_pairs_each_value_with_the_threshold(db):
     headers = ["depth", "radius"]
     query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", 20,headers)
 
+    # a single threshold is a percentage of each measured value
     assert "ABS(depth - ?) <= ? AND ABS(radius - ?) <= ?" in query
-    assert parameters == (100.0, 20, 250.0, 50)
+    # WHERE pairs each value with its tolerance; ORDER BY repeats them to rank nearest first
+    assert parameters == (100.0, 20.0, 250, 50.0) * 2
+    assert "ORDER BY ABS(depth - ?) / ? + ABS(radius - ?) / ?" in query
+
+
+def test_construct_fuzzy_search_query_uses_each_columns_own_tolerance(db):
+    terms = {"depth": 25.0, "perimeter": 700.0}
+    tolerances = {"depth": {"absolute": 1.5}, "perimeter": {"percent": 2.5}}
+    query, parameters = db._construct_fuzzy_search_query(terms, "sku_table", tolerances, ["depth", "perimeter"])
+
+    assert parameters == (25.0, 1.5, 700.0, 17.5) * 2
+
+
+def test_a_tolerance_must_be_absolute_or_percent(db):
+    with pytest.raises(ValueError):
+        db._construct_fuzzy_search_query({"depth": 25.0}, "sku_table", {"depth": {"inches": 1}}, ["depth"])
 
 
 def test_map_from_database_keys_rows_by_index_then_column(db):
@@ -63,3 +79,9 @@ def test_map_from_database_keys_rows_by_index_then_column(db):
         0: {"id": 1, "diameter": 100.0, "area": 250.0},
         1: {"id": 2, "diameter": 105.0, "area": 260.0},
     }
+
+
+def test_the_old_mm_unit_name_is_rejected(db):
+    # "absolute" replaced "mm": the unit is the column's own, not always millimetres
+    with pytest.raises(ValueError):
+        db._construct_fuzzy_search_query({"depth": 25.0}, "sku_table", {"depth": {"mm": 1}}, ["depth"])

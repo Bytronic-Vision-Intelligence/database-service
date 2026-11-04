@@ -2,9 +2,11 @@ from .base_functions.state import State
 from .publish_state import PublishState
 from dependencies.mqtt.mqtt_functions import MQTTClient
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
-from dependencies.mqtt.topic import check_for_messages
-from logging import info
+from dependencies.mqtt.topic import check_for_matching_message
 from json import dumps
+import logging
+
+logger = logging.getLogger(__name__)
 class SearchState(State):
     '''A state to control search behaviour for a database'''
     def __init__(self, state_machine, message, state_id = "Search State"):
@@ -18,7 +20,17 @@ class SearchState(State):
         try:
             search_data = self.message
             for subscriber in self.my_state_machine.blocking_subscribers:
-                search_data.update(check_for_messages(subscriber))
+                search_data.update(check_for_matching_message(subscriber, self.message.get("message_id")))
+
+            missing = [column for column in self.my_state_machine.search_headers if search_data.get(column) is None]
+            if missing:
+                # usually the measuring service did not answer in time, e.g. just after start-up
+                logger.error(
+                    "Search for instruction %s skipped: no %s received",
+                    self.message.get("message_id"), ", ".join(missing),
+                )
+                self.__return_idle()
+                return
 
             results = self._fuzzy_search_database(
                 self.my_state_machine.mqtt_client, 
@@ -29,8 +41,7 @@ class SearchState(State):
             )
 
         except Exception as e:
-            info(f"Error : {self.my_state_machine.service_id} fuzzy search failed: {e}")
-            print(f"Error : {self.my_state_machine.service_id} fuzzy search failed: {e}")
+            logger.error("%s search failed: %r", self.my_state_machine.service_id, e)
 
         if results != None:
             self.my_state_machine.change_state(
@@ -38,6 +49,9 @@ class SearchState(State):
             )
             return
 
+        self.__return_idle()
+
+    def __return_idle(self):
         from .idle_state import IdleState
         self.my_state_machine.change_state(IdleState(self.my_state_machine))
 
@@ -66,9 +80,10 @@ class SearchState(State):
         if table_name == None: raise ValueError(f"Error : table name cannot be None")
         
         search_results = db[database_name].search(
-            table_name, 
-            message,headers, 
-            threshold
+            table_name,
+            message,headers,
+            threshold,
+            db.get("max_results")
         )
         response["matches_found"]=len(search_results)
         client.publish(

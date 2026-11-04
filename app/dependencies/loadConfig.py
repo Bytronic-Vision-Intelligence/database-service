@@ -11,9 +11,8 @@ def get_config(config_path:str = "") -> dict:
     Returns:
         config: an empty dict if the file is missing or empty or the corresponding information if found.
     """
-    path = Path(config_path)
-    if path == Path(""):
-        path = _config_path()
+    # no --config (None or "") falls back to the repository config.yaml
+    path = Path(config_path) if config_path else _config_path()
     if not path.exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:

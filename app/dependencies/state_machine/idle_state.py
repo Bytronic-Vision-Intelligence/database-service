@@ -5,6 +5,9 @@ from .remove_state import RemoveState
 from .update_state import UpdateState
 from dependencies.mqtt.mqtt_functions import *
 from dependencies.mqtt.topic import check_for_messages
+import logging
+
+logger = logging.getLogger(__name__)
 
 class IdleState(State):
     '''A state to control the idle process'''
@@ -18,6 +21,7 @@ class IdleState(State):
         message = check_for_messages(self.my_state_machine.ui_request)
         instruction = message.get("database_instruction")
         if instruction == None: return
+        self.my_state_machine.message_id = message.get("message_id")
 
         if instruction == "search_database":
             self.my_state_machine.change_state(SearchState(
@@ -40,5 +44,5 @@ class IdleState(State):
         '''a simple process that checks the state of the client and 
         reconnects if the beoker disconnects due to being idle'''
         if self.my_state_machine.mqtt_client.is_connected: return
-        print("Info : mqtt client disconnected, reconnecting")
+        logger.warning("Mqtt client disconnected, reconnecting")
         self.my_state_machine.mqtt_client.connect()

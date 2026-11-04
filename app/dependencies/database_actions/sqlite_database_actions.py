@@ -2,6 +2,9 @@ import re
 import sqlite3
 
 from .database_actions import DatabaseActions
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SqliteDatabaseActions(DatabaseActions):
     def __init__(self, database_location):
@@ -94,8 +97,9 @@ class SqliteDatabaseActions(DatabaseActions):
             self, 
             terms:dict, 
             database_table:str, 
-            threshold:int, 
-            headers:list
+            threshold:int,
+            headers:list,
+            max_results:int = None
         ):
         '''creates a search queory from a dictionary of terms
         Args:
@@ -109,27 +113,88 @@ class SqliteDatabaseActions(DatabaseActions):
         if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
             raise ValueError("Invalid database column name")
 
-        if threshold < 0:
-            raise ValueError("Threshold must be non-negative")
-
         conditions = [
             f"ABS({field} - ?) <= ?"
             for field in fields
         ]
 
+        tolerances = [max(self._tolerance(field, terms[field], threshold), 1e-9) for field in fields]
+        # nearest first: each column's distance as a share of its tolerance, summed. Object-matching
+        # reads only the first match_count results, so row order would drop a close plate stored
+        # late (SKU 67 was 11th of 15 in its size group and never reached the matcher).
+        closeness = " + ".join(f"ABS({field} - ?) / ?" for field in fields)
         query = f"""
             SELECT *
             FROM {database_table}
             WHERE {" AND ".join(conditions)}
+            ORDER BY {closeness}
         """.strip()
 
         parameters = tuple(
             value
-            for field in fields
-            for value in (terms[field], terms[field]*(threshold/100))
-        )
+            for field, tolerance in zip(fields, tolerances)
+            for value in (terms[field], tolerance)
+        ) * 2
+        if max_results:
+            # two steps: pick the nearest rows by their measurements alone, which the search index
+            # covers, then read only those rows. Reading SELECT * for every row in tolerance reads
+            # each plate's reference images (about 2 MB) and costs about 4 ms per stored plate.
+            query = f"""
+            SELECT *
+            FROM {database_table}
+            WHERE rowid IN (
+                SELECT rowid
+                FROM {database_table}
+                WHERE {" AND ".join(conditions)}
+                ORDER BY {closeness}
+                LIMIT ?
+            )
+            ORDER BY {closeness}
+            """.strip()
+            parameters += (int(max_results),) + parameters[len(parameters) // 2:]
 
         return query, parameters
+
+    def create_search_index(self, database_table:str, columns:list):
+        '''indexes the searchable columns, so a search reads the measurements without the reference
+        images stored in the same rows
+        Args:
+            database_table: the table searched
+            columns: the searchable columns, in search order
+        '''
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
+            raise ValueError("Invalid database table name")
+        if not columns or any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", c) for c in columns):
+            raise ValueError("Invalid database column name")
+        name = f"idx_{database_table}_search"
+        self.execute_query(f"CREATE INDEX IF NOT EXISTS {name} ON {database_table} ({', '.join(columns)})", ())
+        return name
+
+    @staticmethod
+    def _tolerance(field:str, value:float, threshold) -> float:
+        '''how far a stored value may be from the measured one and still match
+        Args:
+            field: the column being searched
+            value: the measured value
+            threshold: a percentage of the value for every column, or per-column tolerances
+                {column: {"absolute": 1.5} or {"percent": 2.5}}. "absolute" is in the column's own
+                units (mm, pixels, grams...). Columns can need different kinds of tolerance: a depth
+                of 25 mm and a perimeter of 700 mm vary by very different amounts, so one percentage
+                does not suit both.
+        Returns:
+            the tolerance in the column's units
+        '''
+        if isinstance(threshold, dict):
+            spec = threshold.get(field)
+            if not isinstance(spec, dict) or len(spec) != 1 or not set(spec) <= {"absolute", "percent"}:
+                raise ValueError(f"search_tolerances.{field} must be {{absolute: n}} or {{percent: n}}, not {spec!r}")
+            (unit, amount), = spec.items()
+            tolerance = float(amount) if unit == "absolute" else abs(float(value)) * float(amount) / 100
+        else:
+            tolerance = abs(float(value)) * float(threshold) / 100
+        if tolerance < 0:
+            raise ValueError("Threshold must be non-negative")
+        return tolerance
 
     def create_table(self, table_name:str, database_columns:dict):
         '''Creates a table within a given database - non functioning, add chore to fix this
@@ -164,7 +229,7 @@ class SqliteDatabaseActions(DatabaseActions):
         data["id"] = self._generate_uid()
         
         fields =include_headers
-        print(f"Info : Headers: {fields}")
+        logger.debug("Headers: %s", fields)
 
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
             raise ValueError("Invalid database table name")
@@ -178,12 +243,11 @@ class SqliteDatabaseActions(DatabaseActions):
         query = f"{table} ({columns}) VALUES ({placeholders})"
         parameters = ()
         for field in fields:
-            try:
-                parameters += (data[field],)
-            except:
-                parameters += ("None",)
-                
-        print("Info : data- mapped")
+            # a field the capture lacks is stored empty (NULL), not as the text "None", which
+            # object-matching would try to decode as an image and the HMI would show as a value
+            parameters += (data.get(field),)
+
+        logger.debug("Data- mapped")
         return query, parameters
     
     def _map_from_database(self, results, table_columns):
@@ -221,13 +285,16 @@ class SqliteDatabaseActions(DatabaseActions):
             sku: a dictionary containing the sku data relevent to the database
             headers: the headers to fit the data into, these must match the keys in the dict
         '''
-        columns = " = ? AND ".join(headers)
-        columns += " = ?"
-        parameters = (data.get("sku"), )
-        for field in headers:
-            try:
-                parameters += (data[field],)
-            except:
-                parameters += ("None",)
-        query = f"UPDATE {database_table} SET sku = ? WHERE {columns};"
+        # The row is found by its sku; every other column the new capture carries replaces the
+        # stored value. Columns missing from it (an image read that timed out) keep theirs.
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database_table):
+            raise ValueError("Invalid database table name")
+        fields = [field for field in headers if field not in ("id", "sku") and data.get(field) is not None]
+        if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field) for field in fields):
+            raise ValueError("Invalid database column name")
+        if not fields:
+            return None, None
+        assignments = ", ".join(f"{field} = ?" for field in fields)
+        parameters = tuple(data[field] for field in fields) + (data.get("sku"),)
+        query = f"UPDATE {database_table} SET {assignments} WHERE sku = ?;"
         return query, parameters

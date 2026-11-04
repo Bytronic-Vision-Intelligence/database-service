@@ -12,3 +12,6 @@ docker-local/
 *.venv
 
 *.db
+# The documented config layout is tracked; real configs (config.yaml,
+# app/configs/config*.yaml) are written by service-orchestrator and stay ignored.
+!config.example.yaml

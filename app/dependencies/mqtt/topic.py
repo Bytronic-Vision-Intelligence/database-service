@@ -1,7 +1,10 @@
-from queue import Queue
+from queue import Queue, Empty
 from .mqtt_functions import start_subscribe_thread
 from json import loads
-from logging import info
+from time import monotonic
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Topic():
     '''a class to host topics and their associated information making
@@ -44,14 +47,44 @@ def check_for_messages(topic:Topic):
 
     if topic.is_subscribe and not topic.is_trigger:
         try:
-            message = loads(topic.queue.get(block = True, timeout=topic.timeout))
-            return message
-        except Exception as e:
-            if e != KeyError: info(f"error occured when checking for trigger {e}")
-    
+            return loads(topic.queue.get(block = True, timeout=topic.timeout))
+        except Empty:
+            logger.warning("No message on %s within %s s", topic.topic, topic.timeout)
+        except (ValueError, TypeError) as error:
+            logger.warning("Unreadable message on %s: %s", topic.topic, error)
+
     try:
         message = loads(topic.queue.get_nowait())
-    except Exception as e:
-        if e != KeyError: info(f"error occured when checking for trigger {e}")
+    except Empty:
+        pass    # nothing waiting: the normal case on every idle tick, so not logged
+    except (ValueError, TypeError) as error:
+        # one bad message must not stop the service (R3.8)
+        logger.warning("Unreadable message on %s: %s", topic.topic, error)
 
     return message
+
+
+def check_for_matching_message(topic:Topic, message_id:str=None):
+    '''Waits on a blocking topic for the message captured for this instruction, discarding any
+    left over from earlier instructions so a cycle never searches with a previous cycle's data
+    Args:
+        topic: a blocking (subscribe, not trigger) topic
+        message_id: the message_id of the instruction being served, None reads the next message
+    Returns:
+        message: the matching message as a dictionary, or {"image": None} on timeout'''
+    if message_id is None:
+        return check_for_messages(topic)
+
+    deadline = monotonic() + topic.timeout
+    while True:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            logger.warning("No message for %s on %s within %s s", message_id, topic.topic, topic.timeout)
+            return {"image": None}
+        try:
+            message = loads(topic.queue.get(block = True, timeout=remaining))
+        except Empty:
+            continue
+        if message.get("message_id") == message_id:
+            return message
+        logger.info("Discarding stale message %s on %s, waiting for %s", message.get('message_id'), topic.topic, message_id)

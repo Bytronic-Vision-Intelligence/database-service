@@ -1,9 +1,11 @@
 from .base_functions.state import State
 from mqtt_client import MQTTConnectionError
 from dependencies.mqtt.mqtt_functions import packetise_results
-from logging import info
 from time import sleep
 from sys import getsizeof
+import logging
+
+logger = logging.getLogger(__name__)
 class PublishState(State):
     ''''''
     def __init__(self, state_machine,data:dict, state_id = "Publish State"):
@@ -24,6 +26,8 @@ class PublishState(State):
             self.my_state_machine.headers,
             self.my_state_machine.service_output.topic
         )
+        for packet in packet_list or []:
+            packet["payload"]["message_id"] = self.my_state_machine.message_id
 
         if packet_list == None: self.__return_idle()
         self.publish_list(packet_list)
@@ -49,7 +53,7 @@ class PublishState(State):
             packet_size = getsizeof(
                 payload
             )
-            print(f"Info : packet size {packet_size} B")
+            logger.debug("Packet size %s B", packet_size)
             if not self.my_state_machine.mqtt_client.is_connected:
                 self.my_state_machine.mqtt_client.connect()
             try:
@@ -58,8 +62,8 @@ class PublishState(State):
                     payload
                 )
                 # sleep(1)
-                print(f"Info : successfully published packet {topic}")
+                logger.info("Successfully published packet %s", topic)
             except Exception as e:
                 packet_list.append(packet)
-                print(f"Error : failed to publish packet {topic} error: {e}")
-                print(f"Info : broker connection state: {self.my_state_machine.mqtt_client.is_connected}")
+                logger.error("Failed to publish packet %s error: %s", topic, e)
+                logger.info("Broker connection state: %s", self.my_state_machine.mqtt_client.is_connected)

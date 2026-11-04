@@ -1,6 +1,8 @@
-from logging import info
 from abc import ABC, abstractmethod
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DatabaseActions(ABC):
     '''a base class containing database connections and actions
@@ -47,7 +49,7 @@ class DatabaseActions(ABC):
             if type(parameters) == str: parameters = (parameters,)
             cursor.execute(query, parameters)
             self.connection.commit()
-            print("Info : Query successful")
+            logger.debug("Query successful")
             return cursor.fetchall()
         except Exception as err:
             raise ConnectionError(f"Error: execute_query '{err}'")
@@ -65,7 +67,7 @@ class DatabaseActions(ABC):
             headers: the headers to fit the data into, these must match the keys in the dict
         '''
         query, parameters = self._map_to_database(sku, database_table, headers)
-        print("Info : database actions - data mapped")
+        logger.debug("Database actions - data mapped")
         self.execute_query(f"INSERT INTO {query}", parameters)
 
     def delete_sku(self, database_table:str, data:any, header:str):
@@ -77,7 +79,7 @@ class DatabaseActions(ABC):
             header: the header to search and remove from
         '''
         query, parameters = self._map_remove_row(database_table, header, data)
-        print("Info : database actions - data mapped")
+        logger.debug("Database actions - data mapped")
         if query == database_table: 
             raise ValueError(f"Error : this will delete entire table!")
         self.execute_query(f"DELETE FROM {query}", parameters)
@@ -89,15 +91,18 @@ class DatabaseActions(ABC):
             sku: a dictionary containing the sku data relevent to the database
             headers: the headers to fit the data into, these must match the keys in the dict
         '''
-        if "id" in headers:
-            headers.remove("id")
+        # a copy: the caller's list is the state machine's, shared with every later insert
+        headers = [header for header in headers if header != "id"]
 
         query, parameters = self._map_update_sku(
             database_table,
-            sku,  
+            sku,
             headers
         )
-        print("Info : database actions - data mapped")
+        if query is None:
+            logger.info("Nothing to update for sku %s", sku.get('sku'))
+            return
+        logger.debug("Database actions - data mapped")
         self.execute_query(query, parameters)
 
     def _map_update_sku(self, database_table, sku:dict, headers:list):
@@ -114,11 +119,13 @@ class DatabaseActions(ABC):
             database_table:str, 
             search_details:dict,
             headers:list,
-            threshold:float = 0):
+            threshold:float = 0,
+            max_results:int = None):
         '''Performs a search on a database table based on a set list of comumns and their associated data
         Args:
             database_table: a string value containing the database table that will be targeted for the search
             search_details: a ditcionary containing the search details
+            max_results: with a threshold, return at most this many, nearest first
         Returns:
             search_results: a dictionary of results from the server
         '''
@@ -132,8 +139,9 @@ class DatabaseActions(ABC):
             search_term, parameters = self._construct_fuzzy_search_query(
                 search_details, 
                 database_table, 
-                threshold, 
-                headers
+                threshold,
+                headers,
+                max_results
             )
         query = f"{search_term}"
 
@@ -141,8 +149,7 @@ class DatabaseActions(ABC):
         try:
             results = self._map_from_database(results, self.database_map)
         except Exception as e:
-            print(f"Error: unable to map data from database: {e}")
-            info(f"Error: unable to map data from database: {e}")
+            logger.error("Unable to map data from database: %s", e)
         return results
 
     def check_exists(self, header:str, data_entry:any, table:str):
@@ -170,7 +177,7 @@ class DatabaseActions(ABC):
             header: the header to search and remove from
         '''
         query, parameters = self._map_remove_row(database_table, header, data)
-        print("Info : database actions - data mapped")
+        logger.debug("Database actions - data mapped")
         if query == database_table: 
             raise ValueError(f"Error : this will delete entire table!")
         self.execute_query(f"DELETE FROM {query}", parameters)
@@ -178,5 +185,5 @@ class DatabaseActions(ABC):
     def _generate_uid(self):
             '''returns a unique identifier'''
             uid = str(uuid.uuid4())
-            print(f"Info : UID generated {uid}")
+            logger.debug("UID generated %s", uid)
             return uid

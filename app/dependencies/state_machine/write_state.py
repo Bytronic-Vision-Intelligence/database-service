@@ -1,8 +1,10 @@
 from .base_functions.state import State
 from dependencies.database_actions.mysql_database_actions import MysqlDatabaseActions
-from dependencies.mqtt.topic import check_for_messages
-from logging import info
+from dependencies.mqtt.topic import check_for_matching_message
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WriteState(State):
     '''A state to control writing data to a database'''
@@ -32,12 +34,12 @@ class WriteState(State):
         )
 
         if is_duplicate: 
-            print(f"Error : Duplicate sku: {write_data['sku']} found")
+            logger.info("Sku %s already exists, updating it", write_data['sku'])
             self.__move_to_write(self.message)
             return
 
         for subscriber in self.my_state_machine.blocking_subscribers:
-            subscriber_data=check_for_messages(subscriber)
+            subscriber_data=check_for_matching_message(subscriber, self.message.get("message_id"))
             if "image" in subscriber_data:
                  subscriber_data[subscriber.name] = subscriber_data.pop("image")
             subscriber_data["date_added"] = datetime.now()
@@ -50,10 +52,9 @@ class WriteState(State):
                 self.my_state_machine.headers
             )
 
-            print(f"Info : data added to database {write_data.get('database_name')}, {write_data.get('destination')}")
+            logger.info("Data added to database %s, %s", write_data.get('database_name'), write_data.get('destination'))
         except Exception as e:
-            info(f"Error transmitting data to database {e}")
-            print(f"Error transmitting data to database {e}")
+            logger.error("Error transmitting data to database %s", e)
 
         self.my_state_machine.change_state(IdleState(self.my_state_machine))
 

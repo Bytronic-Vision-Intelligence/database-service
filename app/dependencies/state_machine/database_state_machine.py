@@ -3,6 +3,9 @@ from .idle_state import IdleState
 from dependencies.mqtt.topic import Topic
 from dependencies.mqtt.mqtt_functions import MQTTConfig, MQTTClient
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DatabaseStateMachine(StateMachine):
     '''A state machine to control database functions'''
@@ -15,6 +18,8 @@ class DatabaseStateMachine(StateMachine):
         self.ui_request = self.__get_topic(self.topics,"hmi_request")
         self.service_output = self.__get_topic(self.topics, "database_output")
         self.blocking_subscribers = self.__get_blocking_subscribers(self.topics)
+        # message_id of the instruction being served, echoed on the results it produces
+        self.message_id = None
         self.state = IdleState(self)
 
     def publish_message(
@@ -71,11 +76,24 @@ class DatabaseStateMachine(StateMachine):
         table_name = database["tables"][0]["database_table"]
         headers = database["tables"][0]["columns"]
         search_headers = database["tables"][0]["searchable_columns"]
-        print(headers)
+        logger.debug("Searchable headers %s", headers)
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
-        db["threshold"]=database.get("search_threshold",0)        
+        # per-column tolerances win over the single percentage, and every searchable column needs one
+        tolerances = database.get("search_tolerances")
+        if tolerances is not None:
+            missing = [column for column in search_headers if column not in tolerances]
+            if missing:
+                raise ValueError(f"Error : search_tolerances has no entry for {missing}")
+            for column in search_headers:
+                SqliteDatabaseActions._tolerance(column, 1.0, tolerances)  # fail at start-up, not mid-search
+        db["threshold"]=tolerances if tolerances is not None else database.get("search_threshold",0)
+        if search_headers and db["threshold"]:
+            # once per database: without it every search reads every plate's images
+            db[database["database_name"]].create_search_index(table_name, search_headers)
+        # the most plates a search returns, nearest first; match object-matching's match_count
+        db["max_results"]=database.get("max_results")
         return db, headers, search_headers
 
     @staticmethod
