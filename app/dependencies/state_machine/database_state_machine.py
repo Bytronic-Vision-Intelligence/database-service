@@ -1,3 +1,4 @@
+from logging import debug
 from .base_functions.state_machine import StateMachine
 from .idle_state import IdleState
 from dependencies.mqtt.topic import Topic
@@ -73,7 +74,7 @@ class DatabaseStateMachine(StateMachine):
         table_name = database["tables"][0]["database_table"]
         headers = database["tables"][0]["columns"]
         search_headers = database["tables"][0]["searchable_columns"]
-        print(headers)
+        debug(f"searchable headers {headers}")
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)

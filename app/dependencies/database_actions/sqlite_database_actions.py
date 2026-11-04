@@ -1,3 +1,4 @@
+from logging import info
 import re
 import sqlite3
 
@@ -226,7 +227,7 @@ class SqliteDatabaseActions(DatabaseActions):
         data["id"] = self._generate_uid()
         
         fields =include_headers
-        print(f"Info : Headers: {fields}")
+        info(f"Headers: {fields}")
 
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
             raise ValueError("Invalid database table name")
@@ -244,7 +245,7 @@ class SqliteDatabaseActions(DatabaseActions):
             # object-matching would try to decode as an image and the HMI would show as a value
             parameters += (data.get(field),)
 
-        print("Info : data- mapped")
+        info("Data- mapped")
         return query, parameters
     
     def _map_from_database(self, results, table_columns):

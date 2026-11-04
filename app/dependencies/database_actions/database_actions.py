@@ -1,4 +1,4 @@
-from logging import info
+from logging import error, info
 from abc import ABC, abstractmethod
 import uuid
 
@@ -47,7 +47,7 @@ class DatabaseActions(ABC):
             if type(parameters) == str: parameters = (parameters,)
             cursor.execute(query, parameters)
             self.connection.commit()
-            print("Info : Query successful")
+            info("Query successful")
             return cursor.fetchall()
         except Exception as err:
             raise ConnectionError(f"Error: execute_query '{err}'")
@@ -65,7 +65,7 @@ class DatabaseActions(ABC):
             headers: the headers to fit the data into, these must match the keys in the dict
         '''
         query, parameters = self._map_to_database(sku, database_table, headers)
-        print("Info : database actions - data mapped")
+        info("Database actions - data mapped")
         self.execute_query(f"INSERT INTO {query}", parameters)
 
     def delete_sku(self, database_table:str, data:any, header:str):
@@ -77,7 +77,7 @@ class DatabaseActions(ABC):
             header: the header to search and remove from
         '''
         query, parameters = self._map_remove_row(database_table, header, data)
-        print("Info : database actions - data mapped")
+        info("Database actions - data mapped")
         if query == database_table: 
             raise ValueError(f"Error : this will delete entire table!")
         self.execute_query(f"DELETE FROM {query}", parameters)
@@ -98,9 +98,9 @@ class DatabaseActions(ABC):
             headers
         )
         if query is None:
-            print(f"Info : nothing to update for sku {sku.get('sku')}")
+            info(f"Nothing to update for sku {sku.get('sku')}")
             return
-        print("Info : database actions - data mapped")
+        info("Database actions - data mapped")
         self.execute_query(query, parameters)
 
     def _map_update_sku(self, database_table, sku:dict, headers:list):
@@ -147,7 +147,7 @@ class DatabaseActions(ABC):
         try:
             results = self._map_from_database(results, self.database_map)
         except Exception as e:
-            print(f"Error: unable to map data from database: {e}")
+            error(f"Unable to map data from database: {e}")
             info(f"Error: unable to map data from database: {e}")
         return results
 
@@ -176,7 +176,7 @@ class DatabaseActions(ABC):
             header: the header to search and remove from
         '''
         query, parameters = self._map_remove_row(database_table, header, data)
-        print("Info : database actions - data mapped")
+        info("Database actions - data mapped")
         if query == database_table: 
             raise ValueError(f"Error : this will delete entire table!")
         self.execute_query(f"DELETE FROM {query}", parameters)
@@ -184,5 +184,5 @@ class DatabaseActions(ABC):
     def _generate_uid(self):
             '''returns a unique identifier'''
             uid = str(uuid.uuid4())
-            print(f"Info : UID generated {uid}")
+            info(f"UID generated {uid}")
             return uid

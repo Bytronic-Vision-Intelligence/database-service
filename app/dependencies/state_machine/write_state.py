@@ -1,7 +1,7 @@
 from .base_functions.state import State
 from dependencies.database_actions.mysql_database_actions import MysqlDatabaseActions
 from dependencies.mqtt.topic import check_for_matching_message
-from logging import info
+from logging import error, info
 from datetime import datetime
 
 class WriteState(State):
@@ -32,7 +32,7 @@ class WriteState(State):
         )
 
         if is_duplicate: 
-            print(f"Error : Duplicate sku: {write_data['sku']} found")
+            error(f"Duplicate sku: {write_data['sku']} found")
             self.__move_to_write(self.message)
             return
 
@@ -50,10 +50,10 @@ class WriteState(State):
                 self.my_state_machine.headers
             )
 
-            print(f"Info : data added to database {write_data.get('database_name')}, {write_data.get('destination')}")
+            info(f"Data added to database {write_data.get('database_name')}, {write_data.get('destination')}")
         except Exception as e:
             info(f"Error transmitting data to database {e}")
-            print(f"Error transmitting data to database {e}")
+            error(f"Error transmitting data to database {e}")
 
         self.my_state_machine.change_state(IdleState(self.my_state_machine))
 

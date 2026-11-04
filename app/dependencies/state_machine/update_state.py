@@ -3,7 +3,7 @@ from dependencies.state_machine.write_state import WriteState
 from dependencies.database_actions.mysql_database_actions import MysqlDatabaseActions
 from dependencies.mqtt.topic import check_for_matching_message
 from datetime import datetime
-from logging import info
+from logging import error, info
 
 class UpdateState(State):
     '''A state to control updating SKU data in a database'''
@@ -25,7 +25,7 @@ class UpdateState(State):
         )
 
         if not is_duplicate: 
-            print(f"Error : No sku: {update_data['sku']} found")
+            error(f"No sku: {update_data['sku']} found")
             self.my_state_machine.change_state(
                 WriteState(
                     self.my_state_machine,
@@ -48,10 +48,10 @@ class UpdateState(State):
                 self.my_state_machine.headers
             )
 
-            print(f"Info : data updated {update_data.get('database_name')}, {update_data.get('destination')}")
+            info(f"Data updated {update_data.get('database_name')}, {update_data.get('destination')}")
         except Exception as e:
             info(f"Error transmitting data to database {e}")
-            print(f"Error transmitting data to database {e}")
+            error(f"Error transmitting data to database {e}")
 
         self.return_to_idle()
 

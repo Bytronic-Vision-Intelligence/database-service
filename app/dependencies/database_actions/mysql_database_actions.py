@@ -1,8 +1,18 @@
+from logging import info
 import mysql.connector
 from mysql.connector import Error
 from .database_actions import DatabaseActions
 
 class MysqlDatabaseActions(DatabaseActions):
+    '''MySQL backend. NOT USABLE YET: it will be fixed during the database-service rework.
+
+    As it stands:
+    - it cannot be created: set_database_map, _map_to_database, _map_from_database and
+      _map_remove_row are not implemented, so Python refuses to instantiate the class;
+    - create_db_connection calls self._disconnect, which does not exist;
+    - it has none of the search query builders SqliteDatabaseActions has;
+    - nothing in the config selects it: DatabaseStateMachine always uses SQLite.
+    '''
     def __init__(
         self,host:str="127.0.0.1",
         user:str="root",
@@ -27,7 +37,7 @@ class MysqlDatabaseActions(DatabaseActions):
                     user=self.user,
                     passwd=self.password
                 )
-                print("MySQL Database connection successful")
+                info("MySQL Database connection successful")
             except Error as err:
                 raise ConnectionError(f"Error: '{err}'")
     
@@ -43,6 +53,6 @@ class MysqlDatabaseActions(DatabaseActions):
                 passwd=self.password,
                 database=self.database_name
             )
-            print("MySQL Database connection successful")
+            info("MySQL Database connection successful")
         except Error as err:
             raise ConnectionError(f"Error: '{err}'") 

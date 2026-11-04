@@ -1,0 +1,73 @@
+# database-service: add, update, remove and search SKU records in a SQLite database.
+#
+# This is the documented SHAPE of the configuration, not deployment config.
+# service-orchestrator writes the real one to app/configs/config.yaml (or
+# config-N.yaml for a second instance) from the project's orchestrator config,
+# and launches the service with --config pointing at it. Run by hand without
+# --config, the service reads config.yaml at the repository root. Neither file
+# is tracked, so a site's topics and database paths never end up in this
+# repository.
+
+project: project
+service_id: database_1
+
+mqtt:
+  mqtt_ip: localhost
+  mqtt_port: 1883
+  qos: 1
+  # hmi_request and database_output are looked up by name; other names are free.
+  topics:
+    - name: hmi_request            # the instruction (search / add / update / remove); triggers a cycle
+      topic: project/ui/ui_1/instruction
+      is_subscribe: true
+      is_trigger: true
+    - name: request_command        # measurements to search with (e.g. from depth-analysis)
+      topic: project/depth_analysis/search/sku_data
+      is_subscribe: true
+      is_trigger: false
+    - name: database_output        # search results
+      topic: project/database/search/matching_sku
+      is_subscribe: false
+      is_trigger: false
+    # Any other subscribe, non-trigger topic is read once per instruction and its
+    # "image" stored in the column named after the topic.
+    - name: depth_data
+      topic: project/camera/depth_1/image
+      is_subscribe: true
+      is_trigger: false
+    - name: colour_data
+      topic: project/camera/colour_1/image
+      is_subscribe: true
+      is_trigger: false
+
+service:
+  database:
+    # SQLite only. A MySQL backend exists in the code but is not usable yet
+    # (see the readme); it will be fixed during the database-service rework.
+    file_location: ../data/database/sku_database.db
+    database_name: sku_database
+
+    # Search tolerance. With neither setting, or search_threshold: 0, a search
+    # matches exact values only.
+    #   search_threshold: one percentage applied to every searchable column.
+    #   search_tolerances: a tolerance per searchable column, which wins over
+    #     search_threshold. Every searchable column needs an entry, either
+    #     {absolute: n} in the column's own units or {percent: n} of the
+    #     measured value.
+    search_threshold: 2.5
+    # search_tolerances:
+    #   depth: {absolute: 2}
+    #   perimeter: {percent: 2.5}
+    #   radius: {percent: 2.5}
+
+    # With a tolerance, return at most this many rows, nearest first. Without
+    # it, every row within tolerance is returned (still nearest first).
+    # max_results: 4
+
+    tables:
+      - database_table: sku_table
+        columns: [id, depth, perimeter, radius, depth_data, colour_data, sku]
+        searchable_columns: [depth, perimeter, radius]
+
+logging:
+  level: INFO

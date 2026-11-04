@@ -1,3 +1,4 @@
+from logging import info
 from .base_functions.state import State
 from .search_state import SearchState
 from .write_state import WriteState
@@ -41,5 +42,5 @@ class IdleState(State):
         '''a simple process that checks the state of the client and 
         reconnects if the beoker disconnects due to being idle'''
         if self.my_state_machine.mqtt_client.is_connected: return
-        print("Info : mqtt client disconnected, reconnecting")
+        info("Mqtt client disconnected, reconnecting")
         self.my_state_machine.mqtt_client.connect()

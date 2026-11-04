@@ -1,3 +1,4 @@
+from logging import info
 from abc import abstractmethod, ABC
 from .state_machine import StateMachine
 class State(ABC):
@@ -9,7 +10,7 @@ class State(ABC):
 
     def enter(self):
         '''The entrypoint for the state, this is called first'''
-        print(f"Info : Entering {self.state_id}")
+        info(f"Entering {self.state_id}")
         pass
 
     @abstractmethod
@@ -19,5 +20,5 @@ class State(ABC):
 
     def exit(self):
         '''the exit point for the state, this will be used to clean up'''
-        print(f"Info : Exiting {self.state_id}")
+        info(f"Exiting {self.state_id}")
         pass
