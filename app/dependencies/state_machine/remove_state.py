@@ -1,6 +1,8 @@
 from .base_functions.state import State
 from .write_state import WriteState
-from logging import error, info
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RemoveState(State):
     '''A state to control removing data from a database by SKU'''
@@ -29,8 +31,7 @@ class RemoveState(State):
         )
 
         if not is_found: 
-            info(f"Error : sku: {message.get('sku')} not found")
-            error(f"Sku: {message.get('sku')} not found")
+            logger.error("Sku: %s not found", message.get('sku'))
             self.leave_state(self.is_update, self.message)
             return
 
@@ -43,8 +44,7 @@ class RemoveState(State):
 
 
         except Exception as e:
-            info(f"Error deleting data in database {e}")
-            error(f"Error deleting data in database {e}")
+            logger.error("Error deleting data in database %s", e)
 
         self.leave_state(self.is_update, self.message)
 

@@ -1,8 +1,10 @@
 import threading
 from queue import Queue
-from logging import info
 
 from mqtt_client import MQTTClient, MQTTConfig
+import logging
+
+logger = logging.getLogger(__name__)
 
 def subscribe_listener(ip: str, port: int, trigger_topic: str, result_queue: Queue, stop_event: threading.Event):
     """Connect to a broker and feed every message on `trigger_topic` into a queue.
@@ -20,7 +22,7 @@ def subscribe_listener(ip: str, port: int, trigger_topic: str, result_queue: Que
 
     def _on_message(topic: str, payload: str) -> None:
         """Hand a received payload to the main thread."""
-        info("Request received:", topic)
+        logger.debug("Request received on %s", topic)
         result_queue.put(payload)
 
     client.subscribe(trigger_topic, _on_message)
@@ -96,7 +98,7 @@ def packetise_results(results:dict, results_map:list[str], topic:str):
     packet_number = 0
     for candidate in results:
         if results[candidate].get("database_response") != None: 
-            info(f"Error : No matches found, aborting packetization")
+            logger.info("No matches found, nothing to publish")
             return
         packet = dict()
         packet["topic"] = f"{topic}/{packet_number}"

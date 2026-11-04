@@ -1,8 +1,10 @@
 from queue import Queue, Empty
 from .mqtt_functions import start_subscribe_thread
 from json import loads
-from logging import info
 from time import monotonic
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Topic():
     '''a class to host topics and their associated information making
@@ -73,7 +75,7 @@ def check_for_matching_message(topic:Topic, message_id:str=None):
     while True:
         remaining = deadline - monotonic()
         if remaining <= 0:
-            info(f"Error : no message for {message_id} on {topic.topic} within {topic.timeout} s")
+            logger.warning("No message for %s on %s within %s s", message_id, topic.topic, topic.timeout)
             return {"image": None}
         try:
             message = loads(topic.queue.get(block = True, timeout=remaining))
@@ -81,4 +83,4 @@ def check_for_matching_message(topic:Topic, message_id:str=None):
             continue
         if message.get("message_id") == message_id:
             return message
-        info(f"Info : discarding stale message {message.get('message_id')} on {topic.topic}, waiting for {message_id}")
+        logger.info("Discarding stale message %s on %s, waiting for %s", message.get('message_id'), topic.topic, message_id)

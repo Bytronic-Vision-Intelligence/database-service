@@ -3,8 +3,10 @@ from .publish_state import PublishState
 from dependencies.mqtt.mqtt_functions import MQTTClient
 from dependencies.database_actions.sqlite_database_actions import SqliteDatabaseActions
 from dependencies.mqtt.topic import check_for_matching_message
-from logging import error, info
 from json import dumps
+import logging
+
+logger = logging.getLogger(__name__)
 class SearchState(State):
     '''A state to control search behaviour for a database'''
     def __init__(self, state_machine, message, state_id = "Search State"):
@@ -29,7 +31,7 @@ class SearchState(State):
             )
 
         except Exception as e:
-            error(f"{self.my_state_machine.service_id} fuzzy search failed: {e}")
+            logger.error("%s fuzzy search failed: %s", self.my_state_machine.service_id, e)
 
         if results != None:
             self.my_state_machine.change_state(

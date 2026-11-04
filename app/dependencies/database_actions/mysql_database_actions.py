@@ -1,7 +1,9 @@
-from logging import info
 import mysql.connector
 from mysql.connector import Error
 from .database_actions import DatabaseActions
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MysqlDatabaseActions(DatabaseActions):
     '''MySQL backend. NOT USABLE YET: it will be fixed during the database-service rework.
@@ -37,7 +39,7 @@ class MysqlDatabaseActions(DatabaseActions):
                     user=self.user,
                     passwd=self.password
                 )
-                info("MySQL Database connection successful")
+                logger.info("MySQL Database connection successful")
             except Error as err:
                 raise ConnectionError(f"Error: '{err}'")
     
@@ -53,6 +55,6 @@ class MysqlDatabaseActions(DatabaseActions):
                 passwd=self.password,
                 database=self.database_name
             )
-            info("MySQL Database connection successful")
+            logger.info("MySQL Database connection successful")
         except Error as err:
             raise ConnectionError(f"Error: '{err}'") 
