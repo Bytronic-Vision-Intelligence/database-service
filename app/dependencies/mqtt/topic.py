@@ -47,15 +47,19 @@ def check_for_messages(topic:Topic):
 
     if topic.is_subscribe and not topic.is_trigger:
         try:
-            message = loads(topic.queue.get(block = True, timeout=topic.timeout))
-            return message
-        except Exception as e:
-            if e != KeyError: info(f"error occured when checking for trigger {e}")
-    
+            return loads(topic.queue.get(block = True, timeout=topic.timeout))
+        except Empty:
+            logger.warning("No message on %s within %s s", topic.topic, topic.timeout)
+        except (ValueError, TypeError) as error:
+            logger.warning("Unreadable message on %s: %s", topic.topic, error)
+
     try:
         message = loads(topic.queue.get_nowait())
-    except Exception as e:
-        if e != KeyError: info(f"error occured when checking for trigger {e}")
+    except Empty:
+        pass    # nothing waiting: the normal case on every idle tick, so not logged
+    except (ValueError, TypeError) as error:
+        # one bad message must not stop the service (R3.8)
+        logger.warning("Unreadable message on %s: %s", topic.topic, error)
 
     return message
 
