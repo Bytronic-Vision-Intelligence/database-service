@@ -11,8 +11,9 @@ class DatabaseStateMachine(StateMachine):
         self.service_id = config.get("service_id", "database_1")
         self.mqtt_client = self.__create_mqtt_client(config)
         self.topics = self.__create_topic_listeners(config)
-        self.database, self.headers, self.search_headers = self.__setup_database(config)
+        self.database, self.headers, self.search_headers, self.tables = self.__setup_database(config)
         self.ui_request = self.__get_topic(self.topics,"ui_request")
+        self.api_request = self.__get_topic(self.topics, "api_request")
         self.service_output = self.__get_topic(self.topics, "database_output")
         self.blocking_subscribers = self.__get_blocking_subscribers(self.topics)
         self.state = IdleState(self)
@@ -68,15 +69,24 @@ class DatabaseStateMachine(StateMachine):
         db = {database["database_name"]: SqliteDatabaseActions(
             database_location=database["file_location"]
         )}
+        tables = {}
+        for table in database.get("tables") or []:
+            name = table.get("database_table")
+            if not name:
+                continue
+            tables[name] = {
+                "columns": list(table.get("columns") or []),
+                "searchable_columns": list(table.get("searchable_columns") or []),
+            }
         table_name = database["tables"][0]["database_table"]
-        headers = database["tables"][0]["columns"]
-        search_headers = database["tables"][0]["searchable_columns"]
+        headers = tables[table_name]["columns"]
+        search_headers = tables[table_name]["searchable_columns"]
         print(headers)
         if not db[database["database_name"]].check_table_exists(table_name):
             raise ConnectionError(f"Error : Could not connect to table {table_name}")
         db[database["database_name"]].set_database_map(table_name)
-        db["threshold"]=database.get("search_threshold",0)        
-        return db, headers, search_headers
+        db["threshold"]=database.get("search_threshold",0)
+        return db, headers, search_headers, tables
 
     @staticmethod
     def __get_topic(topic_dict:dict, topic_name:str)-> Topic:

@@ -15,7 +15,8 @@ class IdleState(State):
         '''Waits for a message to be received from the UI, then switches to the appropriate
         state based on the given command found under the database_instruction key'''
         self.__mqtt_watchdog()
-        message = check_for_messages(self.my_state_machine.ui_request)
+        message = self.__next_instruction()
+        if message is None: return
         instruction = message.get("database_instruction")
         if instruction == None: return
 
@@ -35,6 +36,19 @@ class IdleState(State):
             self.my_state_machine.change_state(UpdateState(
                 self.my_state_machine, message
             ))
+
+    def __next_instruction(self):
+        '''Return the next UI or API request that carries a database instruction.'''
+        message = check_for_messages(self.my_state_machine.ui_request)
+        if isinstance(message, dict) and message.get("database_instruction"):
+            return message
+        api_request = getattr(self.my_state_machine, "api_request", None)
+        if api_request is None or api_request.queue.empty():
+            return None
+        message = check_for_messages(api_request)
+        if isinstance(message, dict) and message.get("database_instruction"):
+            return message
+        return None
 
     def __mqtt_watchdog(self):
         '''a simple process that checks the state of the client and 

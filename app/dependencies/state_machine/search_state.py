@@ -5,6 +5,7 @@ from dependencies.database_actions.sqlite_database_actions import SqliteDatabase
 from dependencies.mqtt.topic import check_for_messages
 from logging import info
 from json import dumps
+
 class SearchState(State):
     '''A state to control search behaviour for a database'''
     def __init__(self, state_machine, message, state_id = "Search State"):
@@ -64,10 +65,20 @@ class SearchState(State):
         if database_name == None: raise ValueError(f"Error : database name cannot be None")
         table_name = message.get("database_table")
         if table_name == None: raise ValueError(f"Error : table name cannot be None")
-        
+
+        spec = (getattr(self.my_state_machine, "tables", None) or {}).get(table_name) or {}
+        columns = list(spec.get("columns") or self.my_state_machine.headers or [])
+        searchable = list(spec.get("searchable_columns") or headers or [])
+        db[database_name].set_database_map(table_name)
+        if not columns:
+            columns = list(db[database_name].database_map)
+        # PublishState reads these headers for the table that was searched.
+        self.my_state_machine.headers = columns
+
         search_results = db[database_name].search(
-            table_name, 
-            message,headers, 
+            table_name,
+            message,
+            searchable,
             threshold
         )
         response["matches_found"]=len(search_results)
